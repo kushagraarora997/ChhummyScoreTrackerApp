@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"Stop\",\"additionalContext\":\"MEMORY UPDATE CHECK: Before this turn ends, review what happened this session. If any new decisions, bugs, user preferences, architecture changes, or feedback were discussed - update the relevant files in .claude/memory/ (project_context.md, user_prefs.md, feedback.md, architecture.md). Then copy the updated files to C:/Users/kusha/.claude/projects/c--Users-kusha-chhummy-tracker/memory/ to keep both locations in sync. If nothing new was learned, skip silently.\"}}'",
+            "statusMessage": "Checking if knowledge base needs updating..."
+          }
+        ]
+      }
+    ]
+  }
+}
