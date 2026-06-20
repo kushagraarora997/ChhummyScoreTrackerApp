@@ -93,7 +93,10 @@ export const useAppStore = create<AppState>()(
 
       await db.sessions.add(session);
 
+      const players = await db.players.toArray();
+
       set({
+        players,
         activeSession: session,
         rounds: [],
       });

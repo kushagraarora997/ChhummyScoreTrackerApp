@@ -96,7 +96,7 @@ export default function LiveGame({
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={onExit}
+          onClick={store.pause}
           className="px-3 py-2 rounded-xl bg-card border border-white/10"
         >
           Pause
@@ -257,12 +257,12 @@ border border-yellow-500/20
         </button>
       </div>
 
-      <Overlays />
+      <Overlays onExit={onExit} />
     </div>
   );
 }
 
-function Overlays() {
+function Overlays({ onExit }: { onExit: () => void }) {
   const store = useAppStore();
 
   const session = store.activeSession!;
@@ -554,6 +554,27 @@ function Overlays() {
               store.closeOverlay
             }
           />
+        </FullOverlay>
+      )}
+
+      {/* PAUSE */}
+      {store.ui.overlay.type ===
+        "pause" && (
+        <FullOverlay title="Game Paused ⏸">
+          <div className="grid gap-3">
+            <button
+              onClick={store.closeOverlay}
+              className="w-full py-4 rounded-2xl bg-green-500 text-black text-lg font-semibold"
+            >
+              Resume Game
+            </button>
+            <button
+              onClick={onExit}
+              className="w-full py-3 rounded-2xl bg-card border border-white/10"
+            >
+              Exit to Home
+            </button>
+          </div>
         </FullOverlay>
       )}
     </AnimatePresence>

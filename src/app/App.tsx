@@ -10,6 +10,8 @@ type Route = "splash" | "home" | "setup" | "live";
 
 export default function App() {
   const init = useAppStore((s) => s.init);
+  const pause = useAppStore((s) => s.pause);
+  const activeSession = useAppStore((s) => s.activeSession);
   const [route, setRoute] = useState<Route>("splash");
 
   useEffect(() => {
@@ -17,6 +19,17 @@ export default function App() {
       setTimeout(() => setRoute("home"), 900);
     });
   }, [init]);
+
+  // Autopause when phone locks or user switches apps
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && route === "live" && activeSession?.status === "active") {
+        pause();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [route, activeSession, pause]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#050816] via-[#09090f] to-black text-white">
