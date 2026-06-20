@@ -155,6 +155,7 @@ interface AppState {
   setScore: (playerId: string, value: number) => void;
   confirmRound: () => Promise<void>;
   undoLastRound: () => Promise<void>;
+  declareWinner: (winnerId: string) => Promise<void>;
   pause: () => void;
   closeOverlay: () => void;
   abandonSession: () => Promise<void>;
@@ -395,6 +396,29 @@ export const useAppStore = create<AppState>()(
         }
       }
 
+      // Everyone crossed 100 in the same round — lowest total wins; tie broken by closer
+      if (survivors.length === 0) {
+        const allPlayers = activeSession.playerIds;
+        const lowestTotal = Math.min(...allPlayers.map((pid) => totals[pid]));
+        const lowestPlayers = allPlayers.filter((pid) => totals[pid] === lowestTotal);
+        const tieWinnerId = lowestPlayers.includes(closerId)
+          ? closerId
+          : lowestPlayers[0];
+
+        const final = totals[tieWinnerId] || 0;
+        const closes = [...rounds, round].filter((r) => r.closerId === tieWinnerId).length;
+        const completed: Session = {
+          ...updatedSession, status: "completed", endedAt: Date.now(), winnerId: tieWinnerId,
+        };
+        await db.sessions.put(completed);
+        await writeStats(completed, [...rounds, round]);
+        set((s) => ({
+          activeSession: completed,
+          ui: { ...s.ui, overlay: { type: "winner", winnerId: tieWinnerId, summary: { rounds: rounds.length + 1, closes, final } } },
+        }));
+        return;
+      }
+
       if (survivors.length === 1) {
         const winnerId = survivors[0];
 
@@ -487,6 +511,37 @@ export const useAppStore = create<AppState>()(
         ui: {
           ...s.ui,
           overlay: { type: "none" },
+        },
+      }));
+    },
+
+    async declareWinner(winnerId: string) {
+      const { activeSession, rounds } = get();
+      if (!activeSession) return;
+
+      const totals = get().getTotals();
+      const final = totals[winnerId] || 0;
+      const closes = rounds.filter((r) => r.closerId === winnerId).length;
+
+      const completed: Session = {
+        ...activeSession,
+        status: "completed",
+        endedAt: Date.now(),
+        winnerId,
+      };
+
+      await db.sessions.put(completed);
+      await writeStats(completed, rounds);
+
+      set((s) => ({
+        activeSession: completed,
+        ui: {
+          ...s.ui,
+          overlay: {
+            type: "winner",
+            winnerId,
+            summary: { rounds: rounds.length, closes, final },
+          },
         },
       }));
     },

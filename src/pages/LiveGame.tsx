@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAppStore } from "../store/useAppStore";
 import { motion, AnimatePresence } from "framer-motion";
 import FullOverlay from "../components/FullOverlay";
@@ -16,6 +17,7 @@ export default function LiveGame({
   const session = store.activeSession;
   const rounds = store.rounds;
   const totals = store.getTotals();
+  const [undoConfirm, setUndoConfirm] = useState(false);
 
   const players = useMemo(() => {
     const map = new Map<
@@ -94,6 +96,8 @@ export default function LiveGame({
       ? store.ui.overlay.closerId
       : undefined;
 
+  const survivors = players.filter((p) => (totals[p.id] || 0) < 100);
+
   return (
     <div className="min-h-screen bg-background text-text p-4 pb-28">
       {/* Header */}
@@ -110,12 +114,32 @@ export default function LiveGame({
         </div>
 
         <button
-          onClick={store.undoLastRound}
-          className="px-3 py-2 rounded-xl bg-card border border-white/10"
+          onClick={() => { if (rounds.length > 0) setUndoConfirm(true); }}
+          className={`px-3 py-2 rounded-xl bg-card border border-white/10 ${rounds.length === 0 ? "opacity-30 cursor-not-allowed" : ""}`}
         >
           Undo
         </button>
       </div>
+
+      {undoConfirm && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-card border border-white/10 px-3 py-2">
+          <span className="text-sm opacity-80">Undo Round {rounds.length}?</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { store.undoLastRound(); setUndoConfirm(false); }}
+              className="px-3 py-1 rounded-lg bg-danger text-white text-sm font-semibold"
+            >
+              Yes
+            </button>
+            <button
+              onClick={() => setUndoConfirm(false)}
+              className="px-3 py-1 rounded-lg bg-elevated text-sm"
+            >
+              No
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-1 text-sm opacity-70">
         Dealer:{" "}
@@ -244,28 +268,21 @@ border border-yellow-500/20
           Score Tracker
         </div>
 
-        <button
-          onClick={store.endRoundStart}
-          className="
-            w-full
-            py-4
-            rounded-2xl
-            bg-success
-            text-black
-            text-lg
-            font-bold
-            shadow-green
-            active:scale-[0.98]
-            transition
-            flex
-            items-center
-            justify-center
-            gap-2
-          "
-        >
-          🎯 End Round #
-          {roundNumber}
-        </button>
+        {survivors.length === 1 ? (
+          <button
+            onClick={() => store.declareWinner(survivors[0].id)}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-black text-lg font-bold shadow-amber active:scale-[0.98] transition flex items-center justify-center gap-2"
+          >
+            🏆 End Game — {survivors[0].name} Wins!
+          </button>
+        ) : (
+          <button
+            onClick={store.endRoundStart}
+            className="w-full py-4 rounded-2xl bg-success text-black text-lg font-bold shadow-green active:scale-[0.98] transition flex items-center justify-center gap-2"
+          >
+            🎯 End Round #{roundNumber}
+          </button>
+        )}
       </div>
 
       <Overlays onExit={onExit} />
@@ -289,6 +306,7 @@ function Overlays({ onExit }: { onExit: () => void }) {
   );
 
   return (
+    <>
     <AnimatePresence>
       {/* WHO CLOSED */}
       {store.ui.overlay.type ===
@@ -337,8 +355,12 @@ function Overlays({ onExit }: { onExit: () => void }) {
                     {p.name}
                   </div>
 
+                  <div className={`text-xs mt-0.5 ${eliminated ? "text-danger" : total >= 85 ? "text-orange-400" : total >= 70 ? "text-warning" : "opacity-40"}`}>
+                    {total} pts
+                  </div>
+
                   {eliminated && (
-                    <div className="text-[10px] text-danger mt-1">
+                    <div className="text-[10px] text-danger mt-0.5">
                       💀 OUT
                     </div>
                   )}
@@ -351,6 +373,13 @@ function Overlays({ onExit }: { onExit: () => void }) {
             “Jo 100 paar gaya… woh
             itihaas ban gaya 😭”
           </div>
+
+          <button
+            onClick={store.closeOverlay}
+            className="mt-3 w-full py-3 rounded-2xl bg-card border border-white/10 text-sm opacity-60"
+          >
+            ← Cancel
+          </button>
         </FullOverlay>
       )}
 
@@ -382,7 +411,10 @@ function Overlays({ onExit }: { onExit: () => void }) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="text-2xl">{p.emoji ?? "🙂"}</div>
-                        <div className="font-semibold">{p.name}</div>
+                        <div>
+                          <div className="font-semibold">{p.name}</div>
+                          <div className="text-xs opacity-50">Score: {store.getTotals()[p.id] || 0}</div>
+                        </div>
                       </div>
                       {isCloser && (
                         <span className="px-2 py-1 rounded-full text-xs bg-success/20 text-success">
@@ -421,11 +453,7 @@ function Overlays({ onExit }: { onExit: () => void }) {
                         <button
                           onClick={() => {
                             setNumpad({ playerId: p.id });
-                            setNumInput(
-                              store.tempScores[p.id] !== undefined
-                                ? String(store.tempScores[p.id])
-                                : ""
-                            );
+                            setNumInput("");
                           }}
                           className="col-span-3 py-3 rounded-xl bg-card border border-dashed border-white/20 text-sm"
                         >
@@ -589,82 +617,89 @@ function Overlays({ onExit }: { onExit: () => void }) {
           )}
         </FullOverlay>
       )}
-      {/* CUSTOM SCORE NUMPAD */}
-      {numpad && (
+    </AnimatePresence>
+
+    {/* CUSTOM SCORE NUMPAD — rendered in a portal directly on document.body to avoid
+        stacking context traps from Framer Motion's animated overlays on Android Chrome */}
+    {numpad && createPortal(
+      <div
+        className="fixed inset-0 bg-black/70 flex items-end"
+        style={{ zIndex: 9999 }}
+        onClick={() => setNumpad(null)}
+      >
         <motion.div
-          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setNumpad(null)}
+          className="w-full rounded-t-3xl bg-elevated border-t border-white/10 p-5 pb-10"
+          initial={{ y: 48 }}
+          animate={{ y: 0 }}
+          transition={{ type: "spring", stiffness: 380, damping: 32 }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <motion.div
-            className="w-full rounded-t-3xl bg-elevated border-t border-white/10 p-5 pb-10"
-            initial={{ y: 32 }}
-            animate={{ y: 0 }}
-            exit={{ y: 32 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto mb-4" />
+          <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto mb-4" />
 
-            {/* Display */}
-            <div className="text-center mb-5">
-              <div className="text-5xl font-bold tracking-tight">
-                {numInput === "" ? "—" : numInput}
-              </div>
-              <div className="text-xs opacity-50 mt-1">Custom score</div>
+          {/* Display */}
+          <div className="text-center mb-5">
+            <div className="text-5xl font-bold tracking-tight">
+              {numInput === "" ? "—" : numInput}
             </div>
+            <div className="text-xs opacity-50 mt-1">
+              {Number(numInput) === 60 ? "Max reached" : "Max 60"}
+            </div>
+          </div>
 
-            {/* Numpad grid */}
-            <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
-              {[1,2,3,4,5,6,7,8,9].map((d) => (
-                <button
-                  key={d}
-                  onClick={() =>
-                    setNumInput((prev) =>
-                      (prev + d).length <= 3 ? prev + d : prev
-                    )
-                  }
-                  className="py-5 rounded-2xl bg-card border border-white/10 text-2xl font-semibold active:scale-[0.96] transition"
-                >
-                  {d}
-                </button>
-              ))}
-              {/* Bottom row: backspace | 0 | confirm */}
+          {/* Numpad grid */}
+          <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+            {[1,2,3,4,5,6,7,8,9].map((d) => (
               <button
-                onClick={() => setNumInput((prev) => prev.slice(0, -1))}
-                className="py-5 rounded-2xl bg-card border border-white/10 text-xl active:scale-[0.96] transition"
-              >
-                ⌫
-              </button>
-              <button
+                key={d}
                 onClick={() =>
-                  setNumInput((prev) =>
-                    prev.length < 3 ? prev + "0" : prev
-                  )
+                  setNumInput((prev) => {
+                    const next = prev === "0" ? String(d) : prev + d;
+                    return Number(next) <= 60 ? next : prev;
+                  })
                 }
                 className="py-5 rounded-2xl bg-card border border-white/10 text-2xl font-semibold active:scale-[0.96] transition"
               >
-                0
+                {d}
               </button>
-              <button
-                onClick={() => {
-                  const v = Number(numInput);
-                  if (!Number.isNaN(v) && v >= 0) {
-                    store.setTempScore(numpad.playerId, v);
-                    setValidErr(null);
-                  }
-                  setNumpad(null);
-                }}
-                className="py-5 rounded-2xl bg-success text-black text-xl font-bold active:scale-[0.96] transition"
-              >
-                ✓
-              </button>
-            </div>
-          </motion.div>
+            ))}
+            {/* Bottom row: backspace | 0 | confirm */}
+            <button
+              onClick={() => setNumInput((prev) => prev.slice(0, -1))}
+              className="py-5 rounded-2xl bg-card border border-white/10 text-xl active:scale-[0.96] transition"
+            >
+              ⌫
+            </button>
+            <button
+              onClick={() =>
+                setNumInput((prev) => {
+                  if (prev === "" || prev === "0") return "0";
+                  const next = prev + "0";
+                  return Number(next) <= 60 ? next : prev;
+                })
+              }
+              className="py-5 rounded-2xl bg-card border border-white/10 text-2xl font-semibold active:scale-[0.96] transition"
+            >
+              0
+            </button>
+            <button
+              onClick={() => {
+                const v = Math.min(Number(numInput), 60);
+                if (!Number.isNaN(v) && v >= 0) {
+                  store.setTempScore(numpad.playerId, v);
+                  setValidErr(null);
+                }
+                setNumpad(null);
+              }}
+              className="py-5 rounded-2xl bg-success text-black text-xl font-bold active:scale-[0.96] transition"
+            >
+              ✓
+            </button>
+          </div>
         </motion.div>
-      )}
-    </AnimatePresence>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
 

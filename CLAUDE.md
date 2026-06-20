@@ -47,13 +47,15 @@ Every task — bug fix, feature, cleanup — goes into `TODO.md` first. Whether 
 - Accumulate across rounds
 - **100 or more = eliminated** from the session
 - Last surviving player below 100 = **wins**
+- **Edge case:** If all players cross 100 in the same round, the player with the lowest total wins. Tie broken by whoever closed that round. (Implemented in `confirmRound()`.)
 
 ### Dealer Rotation:
 - The player who closes **becomes dealer for the next round**
 - In app = "closer" and "dealer" are the same role
 
-### Closer Constraint (already implemented):
+### Closer Constraint (implemented):
 - The closer cannot score more than 5 in their own round (their deadwood was ≤ 5 to close)
+- UI: closer sees only chips 0–5, no Custom button
 
 ---
 
@@ -68,7 +70,8 @@ Every task — bug fix, feature, cleanup — goes into `TODO.md` first. Whether 
 | Database | Dexie 4 (IndexedDB wrapper) |
 | Animation | Framer Motion 11 |
 | Icons | Lucide React |
-| Charts | Recharts (imported, not yet used — reserved for stats page) |
+| Charts | Recharts — BarChart, Bar, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer |
+| Share Card | html2canvas — captures DOM node to PNG |
 | PWA | vite-plugin-pwa |
 
 ---
@@ -77,23 +80,27 @@ Every task — bug fix, feature, cleanup — goes into `TODO.md` first. Whether 
 
 ```
 src/
-  app/App.tsx          # Route manager — splash | home | setup | live
+  app/App.tsx              # Route manager — splash | home | setup | live | stats
   pages/
-    Splash.tsx         # Intro animation screen
-    Home.tsx           # Main menu + Hall of Fame (currently hardcoded)
-    PlayerSetup.tsx    # Player selection (2–6 players)
-    LiveGame.tsx       # Core game screen (~670 lines — main beast)
+    Splash.tsx             # Intro animation screen (900ms)
+    Home.tsx               # Main menu + real Hall of Fame from DB
+    PlayerSetup.tsx        # Player selection (2–6 players, maxLength=20 on name input)
+    LiveGame.tsx           # Core game screen + 4 overlays (whoClosed, enterScores/numpad, eliminated, pause)
+    StatsPage.tsx          # 3-tab stats: Players | History | Charts
+  components/
+    FullOverlay.tsx        # Reusable bottom-sheet overlay (tone: success | danger)
+    WinnerView.tsx         # Winner celebration + html2canvas share card
   store/
-    useAppStore.ts     # All game state via Zustand
+    useAppStore.ts         # All game state via Zustand + module-level writeStats()
   db/
-    index.ts           # Dexie schema: players, sessions, rounds, stats, achievements
+    index.ts               # Dexie schema: players, sessions, rounds, stats, achievements
   utils/
-    nanoid.ts          # Simple ID generator
+    nanoid.ts              # Simple ID generator
   styles/
-    index.css          # Tailwind + global styles
+    index.css              # Tailwind + global styles
 ```
 
-Real entry point: `src/app/App.tsx`. Ignore `src/App.tsx` — dead Vite template code.
+Real entry point: `src/app/App.tsx`. Ignore `src/App.tsx` — dead Vite template file.
 
 ---
 
@@ -104,12 +111,13 @@ Splash (900ms)
   → Home
       → PlayerSetup → LiveGame
       → Resume → LiveGame
-           → End Round → Choose Closer → Enter Scores → Confirm
+           → End Round → Who Closed → Enter Scores → Confirm
                 → Elimination modal → Continue
-                → Winner modal → End session → Home
+                → Winner modal → Back to Home
+      → Stats → Players tab | History tab | Charts tab
 ```
 
-Routing is manual (`type Route = "splash" | "home" | "setup" | "live"`). No React Router.
+Routing is manual (`type Route = "splash" | "home" | "setup" | "live" | "stats"`). No React Router.
 
 ---
 
@@ -120,39 +128,59 @@ DB name: `chhummy-db`
 | Table | Status | Notes |
 |-------|--------|-------|
 | **players** | ✅ In use | id, name, emoji, createdAt, lastUsedAt |
-| **sessions** | ✅ In use | id, startedAt, endedAt, playerIds[], dealerIndex, winnerId, status |
+| **sessions** | ✅ In use | id, startedAt, endedAt, playerIds[], dealerIndex, winnerId, status ("active"/"completed"/"abandoned") |
 | **rounds** | ✅ In use | id, sessionId, number, closerId, scores{}, totals{}, createdAt |
-| **stats** | ❌ Schema only | Never written to or read. Needs implementation. |
-| **achievements** | ❌ Schema only | Never written to or read. Needs implementation. |
+| **stats** | ✅ In use | Single "global" row. totals: { wins, closes, eliminations, averageScore, survivalRounds, streaks } |
+| **achievements** | ✅ In use | Per-game rows written on completion. Keys: ICE_COLD, UNTOUCHABLE, SURVIVOR, CLUTCH_MASTER, PATSY |
 
-Achievement keys: `ICE_COLD | UNTOUCHABLE | SURVIVOR | CLUTCH_MASTER | PATSY`
+Achievement definitions:
+- `ICE_COLD` — winner finished with 0 total points
+- `UNTOUCHABLE` — winner never reached 70+ at any point
+- `SURVIVOR` — winner was at 85+ at some point but still won
+- `CLUTCH_MASTER` — player who closed the most rounds (unique leader only)
+- `PATSY` — first player to be eliminated
+
+Stats are written by `writeStats()` in `useAppStore.ts` on every game completion. Called from `confirmRound()` winner block.
 
 ---
 
-## What Is Built vs What Is Not
+## What Is Built ✅
 
-### Built ✅
-- Player management (add, reuse, emoji auto-assign)
+- Player management (add, reuse, emoji auto-assign, maxLength=20)
 - Live game screen with player card states (normal / warning 70+ / critical 85+ / eliminated)
-- Full round flow (end round → choose closer → enter scores → confirm)
-- Elimination full-screen alert
-- Winner celebration screen
+  - Warning: amber card bg + amber total text
+  - Critical: red card bg + pulsing danger total text
+  - Eliminated: dark red bg, 60% opacity, 💀 OUT badge
+- Full round flow (end round → who closed → enter scores → confirm)
+  - Closer sees only chips 0–5, no Custom button
+  - Score entry shows each player's current total under their name
+  - Running total preview after chip selection (colored by threshold, 💀 at 100)
+  - Custom Numeric Keypad modal (no window.prompt)
+  - Numpad: leading-zero safe, opens empty, backspace works
+- Who Closed buttons show current pts (colored amber/red if in danger)
+- Elimination full-screen modal (dark red, vibration)
+- Winner celebration screen with share card (html2canvas + Web Share API / download fallback)
 - Undo last round
+- Pause screen (bottom-sheet, blur behind)
+- End Game / Abandon session
 - Autosave to IndexedDB every action
+- Resume session on app reload
 - Offline PWA
 - Dark premium theme with Framer Motion animations
+- Stats system (writeStats on game end)
+- Hall of Fame with real data (wins, closes, most eliminated)
+- Stats page — 3 tabs:
+  - Players: per-player stat cards + achievement badges, sorted by wins
+  - History: sessions desc, expandable round-by-round with per-player rows
+  - Charts: Wins per Player (green winner bar) + Closes vs Eliminations (legend included)
+- Home empty state: "How to Close" quick rules card shown when no games played
+- Pull-to-refresh blocked (overscroll-behavior: none)
+- visibilitychange handled — resume flow triggers on return from lock screen
 
-### Not Built ❌
-- Stats/History UI — schema exists, zero UI
-- Achievements — schema exists, never written or displayed
-- Hall of Fame with real data (hardcoded right now)
-- Weekly / Monthly dashboard
-- Session history browser (round-by-round)
-- Vibration on elimination (`navigator.vibrate()`)
-- Share Result Card (PNG + WhatsApp)
-- Deployment — family cannot access the app yet (only runs locally on dev machine)
-- Numeric Keypad Modal (custom score uses `window.prompt()` — unacceptable)
-- Autopause on phone lock/background
+## What Is NOT Built ❌
+
+- Weekly / Monthly dashboard (time-series Recharts — backlog, not in TODO)
+- Deployment push — Vercel is configured and linked to GitHub. Build works. Push to main is pending explicit user go-ahead.
 
 ---
 
@@ -178,20 +206,27 @@ Custom Tailwind theme:
 
 ## Known Bugs
 
-1. **New player name shows "Player"** — `newSession()` uses stale Zustand state, not fresh DB read
-2. **Share Result Card broken** — button exists in Winner screen, `onClick` is empty
-3. **Pull-to-refresh kills game** — block with `overscroll-behavior: none`
-4. **App should survive phone lock** — `visibilitychange` not handled; session is in DB so safe, resume flow needs to trigger
+None currently known. All original bugs fixed. Edge cases covered:
+- Both players hitting 100 same round → handled (lowest total wins, closer as tiebreaker)
+- Undo at round 0 → safe no-op
+- Long player names → input capped at 20 chars, no horizontal scroll
+
+---
+
+## Test Coverage
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| batch-05 | 17 | ✅ All pass |
+| batch-06b | 6 | ✅ All pass |
+
+Test scripts in `C:\Users\kusha\AppData\Local\Temp\pw-test\`. Run with `node batch05.mjs` from that directory (dev server must be on port 5174).
 
 ---
 
 ## Deployment Context
 
-The family (parents, sister) need to access this app. Options in order of preference:
-1. **Vercel or Netlify** — free, one `npm run build` + deploy, accessible from any device anywhere. Best choice.
-2. Local network server — only works on same WiFi, fragile.
-
-Deployment is a pending TODO. Until deployed, only the developer can use the app.
+Vercel project linked to GitHub repo. `npm run build` produces a valid PWA. Git push to `main` → auto-deploys to Vercel. **Push has not been done yet** — pending explicit user go-ahead.
 
 ---
 

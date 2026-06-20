@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend,
 } from "recharts";
 import { db, Player, Session, Round } from "../db";
 
@@ -271,16 +271,22 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                               const closer = playerMap.get(r.closerId);
                               return (
                                 <div key={r.id} className="rounded-xl bg-elevated p-3">
-                                  <div className="text-xs font-semibold mb-1 opacity-70">
+                                  <div className="text-xs font-semibold mb-2 opacity-70">
                                     Round {r.number} — closed by {closer?.emoji} {closer?.name}
                                   </div>
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="space-y-1">
                                     {h.session.playerIds.map((pid) => {
                                       const p = playerMap.get(pid);
+                                      const score = r.scores[pid] ?? 0;
+                                      const total = r.totals[pid] ?? 0;
+                                      const elim = total >= 100;
                                       return (
-                                        <span key={pid} className="text-xs opacity-80">
-                                          {p?.name}: +{r.scores[pid] ?? 0} ({r.totals[pid] ?? 0})
-                                        </span>
+                                        <div key={pid} className="flex items-center justify-between text-xs">
+                                          <span className="opacity-60">{p?.emoji} {p?.name}</span>
+                                          <span className={elim ? "text-danger font-semibold" : total >= 85 ? "text-orange-400" : total >= 70 ? "text-warning" : "opacity-80"}>
+                                            +{score} → {total}{elim ? " 💀" : ""}
+                                          </span>
+                                        </div>
                                       );
                                     })}
                                   </div>
@@ -337,6 +343,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                           contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 12, fontSize: 12 }}
                           cursor={{ fill: "rgba(255,255,255,0.04)" }}
                         />
+                        <Legend wrapperStyle={{ fontSize: 11, opacity: 0.6 }} />
                         <Bar dataKey="Closes" fill="#F59E0B" radius={[6, 6, 0, 0]} />
                         <Bar dataKey="Eliminations" fill="#EF4444" radius={[6, 6, 0, 0]} />
                       </BarChart>

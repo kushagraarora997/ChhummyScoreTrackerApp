@@ -76,7 +76,7 @@ export default function Home({
           )}
           <button
             onClick={onStartNew}
-            className="w-full py-4 rounded-2xl bg-card text-text border border-white/5 shadow-glow"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-bold text-lg shadow-amber active:scale-[0.98] transition"
           >
             🔥 Start New Game
           </button>
@@ -110,6 +110,18 @@ export default function Home({
             </div>
           )}
         </div>
+
+        {(!hall || hall.totalGames === 0) && (
+          <div className="mt-4 rounded-2xl bg-card p-4 border border-white/5">
+            <div className="text-sm font-semibold mb-3">📖 How to Close</div>
+            <div className="space-y-2 text-sm opacity-70">
+              <div>🃏 1 pure sequence (3 cards) mandatory</div>
+              <div>✌️ Remaining deadwood ≤ 5 to close</div>
+              <div>💀 100+ points = eliminated</div>
+              <div>🏆 Last player under 100 wins</div>
+            </div>
+          </div>
+        )}
 
         <div className="text-center text-[11px] opacity-40 mt-6 italic">
           "Ghar toot jaaye, par score yaad rehna chahiye."

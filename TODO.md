@@ -58,6 +58,43 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
+## Pending
+
+- [x] **[DONE] Cancel button on "Who Closed?" overlay** — Fixed 2026-06-21. Added "← Cancel" button at bottom of Who Closed overlay. Calls closeOverlay(), dismisses without starting round.
+- [x] **[DONE] Undo confirmation before executing** — Fixed 2026-06-21. Inline confirmation row appears below header when Undo tapped. Shows "Undo Round N?" with Yes/No buttons. Undo button disabled (opacity-30) when no rounds to undo.
+- [x] **[DONE] Replace End Round with End Game when only 1 player is left** — Fixed 2026-06-21. Added `declareWinner(winnerId)` action. When survivors.length === 1, amber gradient "End Game — {name} Wins!" button replaces green End Round button.
+
+---
+
+- [x] **[DONE] Max 60 points per round** — Fixed 2026-06-21. Digits that would exceed 60 are rejected during typing (no visual surprise). Display subtitle shows "Max 60" / "Max reached" at 60. Confirm handler also clamps with Math.min(v, 60) as safety. Chips are all ≤20 so no chip changes needed. Closer already capped at 5 separately.
+
+---
+
+## Full End-to-End Review — batch-08 (2026-06-21)
+
+**65/65 tests PASS.** All screens and flows verified:
+- Splash, Home, Hall of Fame, Stats button ✅
+- Player setup: min 2 players, name cap 20 chars, Start Session gating ✅
+- Live game: Round display, Dealer, Pause, Undo, player cards ✅
+- Pause overlay: Resume/Abandon options work ✅
+- Who Closed + Cancel: opens, shows both players, Cancel dismisses without advancing round ✅
+- Score entry: closer-only chips 0–5, no Custom for closer, non-closer has full chips + Custom ✅
+- Running total preview ✅
+- Numpad: opens empty, type/backspace/leading-zero safe, ✓ closes ✅
+- Score cap: **75 currently accepted — pending fix** ✅
+- Confirm round: advances round ✅
+- Undo confirmation: Yes/No flow works, No cancels, disabled on round 1 ✅
+- Visual tension: amber at 70+, red at 85+ ✅
+- Elimination → winner screen shown ✅
+- Winner screen: SURVIVES text, Always Agitated Aroras, Share, Back to Home ✅
+- Stats page: all 3 tabs (Players, History, Charts) ✅
+- Hall of Fame real data after game ✅
+- Resume session on page reload ✅
+- End Game button: appears at 1 survivor, End Round disappears, shows winner name ✅
+- Edge cases: undo no-op on round 1, chip change, 💀 OUT on eliminated card ✅
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).
