@@ -21,7 +21,7 @@ metadata:
 1. `LiveGame.tsx` is 670 lines — 5 modal components inside one file. Needs splitting.
 2. `getTotals()` is a plain function called on every render — should be `useMemo` or derived state.
 3. `setScore` and `setTempScore` are duplicates — both do the same thing.
-4. Bug: `newSession()` doesn't refresh `players` in store — new player added in PlayerSetup doesn't appear in LiveGame until refresh.
+4. **CRITICAL BUG (test-confirmed 2026-06-20):** `newSession()` doesn't refresh `players` in store. Flow: PlayerSetup writes new players to DB via `db.players.add()` but only updates local React state (`available`). `newSession()` saves session + playerIds but never reloads `store.players` from DB. Result: `store.players` stays as it was at `init()` time (empty on first run). LiveGame falls back to `{ name: "Player" }` for every player. Worse: `Overlays()` component filters `store.players` to build the "Who Closed?" button list — if store.players is empty, ZERO buttons render and the round flow is completely broken. Fix: in `newSession()`, add `const players = await db.players.toArray(); set({ players, activeSession: session, rounds: [] })` — one line surgical fix.
 5. `window.prompt()` used in PlayerSetup (add player) and LiveGame (custom score). `window.alert()` used for validation in LiveGame. All need custom modals.
 6. No lazy loading — all pages imported eagerly in App.tsx.
 

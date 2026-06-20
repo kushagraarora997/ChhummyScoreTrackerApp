@@ -6,7 +6,7 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ## Bugs (Fix These First)
 
-- [ ] **New Player Name Not Showing** — Naya player add karo aur game start karo, toh player card pe name ki jagah sirf "Player" dikhta hai. Refresh ke baad sahi hota hai. Root cause: `newSession()` stale Zustand state use karta hai, fresh DB read nahi karta.
+- [ ] **[CRITICAL] New Player Name + Who Closed Broken** — Confirmed via Playwright test (2026-06-20). Root cause: `PlayerSetup` writes new players to IndexedDB but only updates local React state. `newSession()` saves session but never reloads `store.players` from DB. Consequence 1: all player cards show "Player". Consequence 2: "Who Closed?" modal renders ZERO buttons (it filters `store.players` which is empty) — round flow completely broken for new players. Fix: one line in `newSession()` — add `const players = await db.players.toArray()` and include in `set({})` call.
 
 - [ ] **Pull-to-Refresh Block Karo** — Browser mein upar se pull karne pe page refresh ho jaata hai, game state ud jaati hai. `overscroll-behavior: none` CSS se block karna hai.
 
