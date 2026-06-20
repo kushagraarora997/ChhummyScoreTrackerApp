@@ -1,8 +1,10 @@
 ---
 name: testing
-description: Testing setup, methodology, Playwright config, and what has been verified
-metadata:
+description: "Testing setup, methodology, Playwright config, and what has been verified"
+metadata: 
+  node_type: memory
   type: project
+  originSessionId: 03a24291-4589-4a87-9cd3-a3a1b0099e16
 ---
 
 ## Testing Setup
@@ -23,6 +25,16 @@ Then write test script as `.mjs` and run with `node test.mjs`.
 - "Who Closed?" player buttons are inside a Framer Motion animated bottom sheet — use `page.evaluate()` + `querySelector` to JS-click, not Playwright locators (animation timing causes timeouts)
 - `window.prompt()` in PlayerSetup (Add Player) can be handled with `page.once('dialog', d => d.accept('Name'))`
 - Screenshots save to `C:/Users/kusha/AppData/Local/Temp/chhummy-{name}.png`
+- Dev server now on **port 5174** (not 5173) — confirmed 2026-06-21
+
+**Learnings from batch-09 (2026-06-21):**
+- `page.click("text=Redo")` matches BOTH the amber span "↩ Redo available" AND the "Redo" button — always use `page.locator("button").filter({ hasText: /^Redo$/ }).first().click()`
+- `page.locator("text=X").isVisible()` can cause strict mode violation if X matches multiple elements — add `.first()` defensively
+- `text=Continue` is specific to the **elimination overlay**. The winner overlay has "Back to Home" instead. Do not use `text=Continue` to wait for winner screen.
+- Elimination overlay only shows when `survivors.length > 1`. With 2 players, eliminating one goes directly to winner. **Tests for the elimination modal must use 3+ players.**
+- `writeStats()` is only called on game completion (winner declared), NOT on abandon. Stats page Players tab shows empty state ("Khelke aao pehle!") after an abandoned session. Tests for Stats must complete the game.
+- Framer Motion `initial={{ opacity: 0 }}` overlays: Playwright's `isVisible()` waits correctly with a timeout, so 2000ms is sufficient for animations.
+- CSS class selectors like `.text-7xl.font-black.text-danger` work in Playwright but are brittle — prefer text-based assertions for content checks.
 
 ## Test Report Files
 
