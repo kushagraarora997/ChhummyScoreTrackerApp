@@ -22,6 +22,8 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 
 **What's NOT Built:** Stats writing to DB (schema exists, never used), Hall of Fame real data (hardcoded), Stats page, Session History, Achievements (schema exists), Weekly/Monthly dashboard, Share Result Card, Numeric Keypad Modal, Autopause.
 
+**Test Status (Batch 1 — 2026-06-20):** Core round flow is BROKEN for new players. `newSession()` doesn't reload players from DB into Zustand. "Who Closed?" modal shows zero buttons. App is not playable end-to-end until this is fixed. See `.claude/TEST_REPORTS/batch-01-2026-06-20.md`.
+
 **See TODO.md for full task list.**
 
-**How:** Why: Give decisions proper context about what's a bug vs missing feature vs technical debt.
+**How to apply:** Give decisions proper context about what's a bug vs missing feature vs technical debt.

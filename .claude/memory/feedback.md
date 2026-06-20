@@ -32,3 +32,11 @@ How to apply: Touch the minimum number of files and lines needed. If a bug is in
 **Rule: Always respond in English.**
 Why: Kush explicitly said "ALWAYS TALK IN ENGLISH, I AM NOT YOUR YAAR." Prior responses used Hinglish — that was wrong.
 How to apply: All responses in English. No Hindi/Hinglish words, no casual bro-speak. Professional but efficient.
+
+**Rule: Test before claiming something works.**
+Why: The player name bug was documented as "cosmetic" but Playwright testing revealed it breaks the entire round flow. Untested assumptions about severity are dangerous.
+How to apply: When fixing bugs or building features, run the Playwright test suite to verify. Don't mark something done without a test confirmation.
+
+**Rule: Maintain test reports in .claude/TEST_REPORTS/.**
+Why: Kush asked for a scored test report file. One batch of testing = one report entry with a self-assessed score.
+How to apply: After every test run, write a report to `.claude/TEST_REPORTS/batch-{N}-{date}.md` and update the score in that file. Kush judges the score.
