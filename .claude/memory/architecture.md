@@ -49,6 +49,10 @@ metadata:
 **Watch out:**
 - `LiveGame.tsx` had pre-existing U+201D (curly right double quotes) in some JSX className attributes. Fixed on lines 370 and 377 (2026-06-21). If any new class attributes look wrong in build, check for smart quotes via `cat -v`.
 
+**CSS gotcha — bg-inherit through wrapper divs (2026-06-21):**
+- `bg-inherit` only inherits the computed `background-color` of the IMMEDIATE parent, not the nearest ancestor with a non-transparent background. If a child div sits inside `<div className="pb-10">` (no background), `bg-inherit` on a deeper element resolves to `transparent`, not the grandparent's colour.
+- Fix: use an explicit colour (e.g. `bg-[#171717]`) on sticky/floating elements when they're wrapped in a bare div inside a coloured container. Affected: the Confirm Round sticky bar in enterScores overlay.
+
 **Fixed bugs (do not re-introduce):**
 - `newSession()` now reloads players from DB before setting state — fixes "Player" name bug
 - All `window.prompt()` replaced with NumpadModal; all `window.alert()` replaced with inline validation toast

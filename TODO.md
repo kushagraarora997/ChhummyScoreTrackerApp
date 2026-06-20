@@ -145,7 +145,17 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
+## Pending
+
+- [x] **[DONE] Emoji contrast on dark card background** — Fixed 2026-06-21. Added `w-12 h-12 rounded-full bg-white/10` circular backdrop behind all emoji instances (player cards, Who Closed buttons, Enter Scores rows).
+
+- [x] **[DONE] Score entry overlay — sticky bottom loses background on scroll** — Fixed 2026-06-21. Replaced `bg-inherit` (was resolving to transparent through intermediate wrapper) with explicit `bg-[#171717]` + `z-10` on the sticky Confirm Round bar.
+
+- [x] **[DONE] No back button on score entry overlay** — Fixed 2026-06-21. Added "← Back" button below Confirm Round in the score entry sticky bar. Calls `store.endRoundStart()` to return to "Who Closed?" overlay.
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).
-- [ ] **Deployment** — Already on Vercel. Push pending (awaiting user approval for production push).
+- [ ] **Deployment** — Already on Vercel. Push to main done 2026-06-21.

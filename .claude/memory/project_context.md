@@ -44,6 +44,9 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Share Result Card: full ranked leaderboard (winner gold-highlighted, eliminated with 💀 + red, pts for all); html2canvas + Web Share API (Android) / download fallback (desktop)
 - Pause screen: bottom-sheet style with blurred live game behind
 - PlayerSetup: players sorted by `lastUsedAt` desc (most recently used first)
+- Emoji contrast fix: `w-12 h-12 rounded-full bg-white/10` circular backdrop behind all emoji instances (player cards, Who Closed buttons, Enter Scores rows) — dark emojis like 😎 now visible
+- Score entry sticky bottom: `bg-[#171717]` + `z-10` on Confirm Round bar (was `bg-inherit` → resolved to transparent through intermediate wrapper div)
+- Back button on score entry: "← Back" below Confirm Round calls `store.endRoundStart()` → reopens "Who Closed?" overlay so wrong closer can be corrected
 
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)

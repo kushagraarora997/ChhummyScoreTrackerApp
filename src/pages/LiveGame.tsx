@@ -222,7 +222,7 @@ export default function LiveGame({
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="text-3xl">
+                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-3xl flex-shrink-0">
                     {p.emoji ?? "🙂"}
                   </div>
 
@@ -370,7 +370,7 @@ function Overlays({ onExit }: { onExit: () => void }) {
                     }
                   `}
                 >
-                  <div className="text-3xl">
+                  <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center text-2xl">
                     {p.emoji ?? "🙂"}
                   </div>
 
@@ -433,7 +433,7 @@ function Overlays({ onExit }: { onExit: () => void }) {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="text-2xl">{p.emoji ?? "🙂"}</div>
+                        <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-xl flex-shrink-0">{p.emoji ?? "🙂"}</div>
                         <div>
                           <div className="font-semibold">{p.name}</div>
                           <div className="text-xs opacity-50">Score: {store.getTotals()[p.id] || 0}</div>
@@ -507,7 +507,7 @@ function Overlays({ onExit }: { onExit: () => void }) {
               })}
           </div>
 
-          <div className="mt-6 sticky bottom-0 bg-inherit pt-3">
+          <div className="mt-6 sticky bottom-0 z-10 bg-[#171717] pt-3">
             {validErr && (
               <div className="mb-3 text-center text-sm text-danger">
                 {validErr}
@@ -539,6 +539,12 @@ function Overlays({ onExit }: { onExit: () => void }) {
               className="w-full py-4 rounded-2xl bg-success text-black text-lg font-semibold shadow-green"
             >
               Confirm Round
+            </button>
+            <button
+              onClick={store.endRoundStart}
+              className="mt-2 w-full py-3 rounded-2xl bg-card border border-white/10 text-sm opacity-60"
+            >
+              ← Back
             </button>
           </div>
         </FullOverlay>
