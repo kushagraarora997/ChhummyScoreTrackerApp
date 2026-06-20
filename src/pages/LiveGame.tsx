@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { motion, AnimatePresence } from "framer-motion";
+import FullOverlay from "../components/FullOverlay";
+import WinnerView from "../components/WinnerView";
 
 const CHIPS = [0, 1, 2, 3, 4, 5, 10, 15, 20];
 const CLOSER_CHIPS = [0, 1, 2, 3, 4, 5];
@@ -267,6 +269,8 @@ function Overlays({ onExit }: { onExit: () => void }) {
   const store = useAppStore();
   const [endGameConfirm, setEndGameConfirm] = useState(false);
   const [validErr, setValidErr] = useState<string | null>(null);
+  const [numpad, setNumpad] = useState<{ playerId: string } | null>(null);
+  const [numInput, setNumInput] = useState("");
 
   const session = store.activeSession;
   if (!session) return null;
@@ -407,11 +411,12 @@ function Overlays({ onExit }: { onExit: () => void }) {
 
                       <button
                         onClick={() => {
-                          const v = Number(prompt("Custom score") || "0");
-                          if (!Number.isNaN(v) && v >= 0) {
-                            store.setTempScore(p.id, v);
-                            setValidErr(null);
-                          }
+                          setNumpad({ playerId: p.id });
+                          setNumInput(
+                            store.tempScores[p.id] !== undefined
+                              ? String(store.tempScores[p.id])
+                              : ""
+                          );
                         }}
                         className={`${isCloser ? "col-span-3" : ""} py-4 rounded-xl bg-card border border-dashed border-white/20 text-sm`}
                       >
@@ -559,116 +564,82 @@ function Overlays({ onExit }: { onExit: () => void }) {
           )}
         </FullOverlay>
       )}
+      {/* CUSTOM SCORE NUMPAD */}
+      {numpad && (
+        <motion.div
+          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setNumpad(null)}
+        >
+          <motion.div
+            className="w-full rounded-t-3xl bg-elevated border-t border-white/10 p-5 pb-10"
+            initial={{ y: 32 }}
+            animate={{ y: 0 }}
+            exit={{ y: 32 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto mb-4" />
+
+            {/* Display */}
+            <div className="text-center mb-5">
+              <div className="text-5xl font-bold tracking-tight">
+                {numInput === "" ? "—" : numInput}
+              </div>
+              <div className="text-xs opacity-50 mt-1">Custom score</div>
+            </div>
+
+            {/* Numpad grid */}
+            <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+              {[1,2,3,4,5,6,7,8,9].map((d) => (
+                <button
+                  key={d}
+                  onClick={() =>
+                    setNumInput((prev) =>
+                      (prev + d).length <= 3 ? prev + d : prev
+                    )
+                  }
+                  className="py-5 rounded-2xl bg-card border border-white/10 text-2xl font-semibold active:scale-[0.96] transition"
+                >
+                  {d}
+                </button>
+              ))}
+              {/* Bottom row: backspace | 0 | confirm */}
+              <button
+                onClick={() => setNumInput((prev) => prev.slice(0, -1))}
+                className="py-5 rounded-2xl bg-card border border-white/10 text-xl active:scale-[0.96] transition"
+              >
+                ⌫
+              </button>
+              <button
+                onClick={() =>
+                  setNumInput((prev) =>
+                    prev.length < 3 ? prev + "0" : prev
+                  )
+                }
+                className="py-5 rounded-2xl bg-card border border-white/10 text-2xl font-semibold active:scale-[0.96] transition"
+              >
+                0
+              </button>
+              <button
+                onClick={() => {
+                  const v = Number(numInput);
+                  if (!Number.isNaN(v) && v >= 0) {
+                    store.setTempScore(numpad.playerId, v);
+                    setValidErr(null);
+                  }
+                  setNumpad(null);
+                }}
+                className="py-5 rounded-2xl bg-success text-black text-xl font-bold active:scale-[0.96] transition"
+              >
+                ✓
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }
 
-function FullOverlay({
-  children,
-  title,
-  tone,
-}: {
-  children: React.ReactNode;
-  title: string;
-  tone?: "success" | "danger";
-}) {
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <motion.div
-        className={`
-          w-full
-          max-h-[92vh]
-          overflow-y-auto
-          overscroll-contain
-          rounded-t-3xl
-          p-4
-          ${
-            tone === "danger"
-              ? "bg-[#1a0b0b]"
-              : tone ===
-                "success"
-              ? "bg-[#0b1a12]"
-              : "bg-elevated"
-          }
-          border-t border-white/10
-        `}
-        initial={{ y: 24 }}
-        animate={{ y: 0 }}
-        exit={{ y: 24 }}
-      >
-        <div className="sticky top-0 z-10 bg-inherit pb-3">
-          <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto mb-3" />
-
-          <div className="text-center text-xl font-semibold">
-            {title}
-          </div>
-        </div>
-
-        <div className="pb-10">
-          {children}
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function WinnerView({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
-  const s = useAppStore();
-
-  const { winnerId, summary } =
-    s.ui.overlay.type === "winner"
-      ? s.ui.overlay
-      : {
-          winnerId: "",
-          summary: {
-            rounds: 0,
-            closes: 0,
-            final: 0,
-          },
-        };
-
-  const winner = s.players.find(
-    (p) => p.id === winnerId
-  );
-
-  return (
-    <div className="text-center">
-      <div className="text-4xl">
-        👑 {winner?.name} SURVIVES
-      </div>
-
-      <div className="mt-3 opacity-80">
-        {summary.rounds} rounds
-        endured •{" "}
-        {summary.closes} closes •
-        Final: {summary.final}
-      </div>
-
-      <div className="mt-2 italic opacity-70">
-        “Clutch maar diya”
-      </div>
-
-      <div className="mt-6 grid gap-2">
-        <button className="w-full py-3 rounded-2xl bg-success text-black font-semibold">
-          Share Result Card (PNG)
-        </button>
-
-        <button
-          onClick={onClose}
-          className="w-full py-3 rounded-2xl bg-card border border-white/10"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}

@@ -1,7 +1,71 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import { db, Player, Session, Round } from "../db";
+import { db, Player, Session, Round, Stats } from "../db";
 import { nanoid } from "../utils/nanoid";
+
+async function writeStats(session: Session, allRounds: Round[]) {
+  const existing = await db.stats.get("global");
+  const base: Stats = existing ?? {
+    id: "global",
+    totals: {
+      wins: {},
+      closes: {},
+      eliminations: {},
+      averageScore: {},
+      survivalRounds: {},
+      streaks: { closeStreak: {}, bestCloseStreak: {} },
+    },
+  };
+  const t = base.totals;
+
+  if (session.winnerId) {
+    t.wins[session.winnerId] = (t.wins[session.winnerId] || 0) + 1;
+  }
+
+  for (const r of allRounds) {
+    t.closes[r.closerId] = (t.closes[r.closerId] || 0) + 1;
+  }
+
+  const lastTotals = allRounds[allRounds.length - 1]?.totals ?? {};
+  for (const pid of session.playerIds) {
+    if (pid !== session.winnerId && (lastTotals[pid] || 0) >= 100) {
+      t.eliminations[pid] = (t.eliminations[pid] || 0) + 1;
+    }
+  }
+
+  for (const pid of session.playerIds) {
+    const roundsIn = allRounds.filter((r) => pid in r.scores).length;
+    const sessionTotal = allRounds.reduce((s, r) => s + (r.scores[pid] || 0), 0);
+    const prev = t.survivalRounds[pid] || 0;
+    const newRounds = prev + roundsIn;
+    t.survivalRounds[pid] = newRounds;
+    if (newRounds > 0) {
+      t.averageScore[pid] = Math.round(
+        ((t.averageScore[pid] || 0) * prev + sessionTotal) / newRounds
+      );
+    }
+  }
+
+  const currentStreak: Record<string, number> = {};
+  for (const pid of session.playerIds) currentStreak[pid] = 0;
+  for (const r of allRounds) {
+    for (const pid of session.playerIds) {
+      if (r.closerId === pid) {
+        currentStreak[pid]++;
+        if (currentStreak[pid] > (t.streaks.bestCloseStreak[pid] || 0)) {
+          t.streaks.bestCloseStreak[pid] = currentStreak[pid];
+        }
+      } else {
+        currentStreak[pid] = 0;
+      }
+    }
+  }
+  for (const pid of session.playerIds) {
+    t.streaks.closeStreak[pid] = currentStreak[pid];
+  }
+
+  await db.stats.put(base);
+}
 
 type UIOverlay =
   | { type: "none" }
@@ -303,6 +367,7 @@ export const useAppStore = create<AppState>()(
         };
 
         await db.sessions.put(completed);
+        await writeStats(completed, [...rounds, round]);
 
         set((s) => ({
           activeSession: completed,

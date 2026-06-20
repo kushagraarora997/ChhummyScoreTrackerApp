@@ -5,8 +5,9 @@ import Home from "../pages/Home";
 import LiveGame from "../pages/LiveGame";
 import PlayerSetup from "../pages/PlayerSetup";
 import Splash from "../pages/Splash";
+import StatsPage from "../pages/StatsPage";
 
-type Route = "splash" | "home" | "setup" | "live";
+type Route = "splash" | "home" | "setup" | "live" | "stats";
 
 export default function App() {
   const init = useAppStore((s) => s.init);
@@ -20,7 +21,6 @@ export default function App() {
     });
   }, [init]);
 
-  // Autopause when phone locks or user switches apps
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden && route === "live" && activeSession?.status === "active") {
@@ -35,9 +35,17 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-b from-[#050816] via-[#09090f] to-black text-white">
       <AnimatePresence mode="wait">
         {route === "splash" && <Splash key="splash" onDone={() => setRoute("home")} />}
-        {route === "home" && <Home key="home" onStartNew={() => setRoute("setup")} onResume={() => setRoute("live")} />}
+        {route === "home" && (
+          <Home
+            key="home"
+            onStartNew={() => setRoute("setup")}
+            onResume={() => setRoute("live")}
+            onStats={() => setRoute("stats")}
+          />
+        )}
         {route === "setup" && <PlayerSetup key="setup" onReady={() => setRoute("live")} onBack={() => setRoute("home")} />}
         {route === "live" && <LiveGame key="live" onExit={() => setRoute("home")} />}
+        {route === "stats" && <StatsPage key="stats" onBack={() => setRoute("home")} />}
       </AnimatePresence>
     </div>
   );

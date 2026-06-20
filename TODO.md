@@ -12,45 +12,47 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 - [x] **[DONE] App Phone Lock/Background** — Fixed 2026-06-20. `visibilitychange` + Pause overlay with Resume/Exit.
 
-- [ ] **[BUG] Winner Not Shown When Last Player Eliminated** — `confirmRound()` does early `return` after showing elimination overlay. `survivors.length === 1` check never runs. Fix: when last elimination happens, skip elimination modal and go straight to winner overlay.
+- [x] **[DONE] Winner Not Shown When Last Player Eliminated** — Fixed 2026-06-20. `confirmRound()` skips elimination modal when only 1 survivor remains, goes straight to winner overlay.
 
-- [ ] **[BUG] alert() Calls in Score Entry** — Two `window.alert()` calls in "Confirm Round" validation: (1) "Bhai sabka score daal" (2) "Closer 5 se upar score nahi". Replace with inline red error message above Confirm button.
+- [x] **[DONE] alert() Calls in Score Entry** — Fixed 2026-06-20. Replaced with inline `validErr` state message above Confirm button.
 
 ---
 
 ## Live Game Improvements
 
-- [ ] **End Game / Abandon Session** — Pause overlay mein "End Game" button chahiye. Click karo → inline confirmation → `abandonSession()` → DB mein session "abandoned" mark hota hai → Home pe navigate. Home screen pe stale session nahi dikhega.
+- [x] **[DONE] End Game / Abandon Session** — Fixed 2026-06-20. Pause overlay has "End Game" → inline confirm → `abandonSession()` → Home.
 
-- [ ] **Splash Screen** — Logo chhota hai, tagline barely visible. Logo bada karo (8xl), "Always Agitated Aroras" amber color mein uppercase large font. Family ka naam hero treatment deserve karta hai.
+- [x] **[DONE] Splash Screen** — Fixed 2026-06-20. Logo 8xl, amber uppercase tagline, longer animation.
 
-- [ ] **Score Entry — "0" chip full width + closer only sees 0–5** — Two changes: (1) "0" chip col-span-3 (full row), amber highlight jab unselected. (2) Closer ke liye sirf 0–5 chips dikhao, 10/15/20 nahi (closer ki max deadwood 5 hai per game rules).
+- [x] **[DONE] Score Entry — "0" chip full width + closer only sees 0–5** — Fixed 2026-06-20.
 
-- [ ] **Numeric Keypad Modal** — `window.prompt()` hatao Add Player se. Bottom slide-up sheet: bada numpad (0–9), confirm button. Custom score entry ke liye bhi same modal.
+- [x] **[DONE] Numeric Keypad Modal** — Fixed 2026-06-20. Bottom sheet numpad replaces `window.prompt()` in both PlayerSetup and LiveGame.
 
-- [ ] **Vibration on Elimination** — `navigator.vibrate([200, 100, 200])` — ek line, bada dramatic moment.
+- [x] **[DONE] Vibration on Elimination** — Fixed 2026-06-20. `navigator.vibrate?.([200, 100, 200])`.
 
-- [ ] **Score Entry — Running Total Preview** — While entering scores, dikhao current total + new score = potential new total. Helps track who's close to 100.
+- [ ] **Score Entry — Running Total Preview** — While entering scores, dikhao current total + new score = potential new total.
 
-- [ ] **Live Game — Visual Tension** — Warning (70+) aur critical (85+) cards ka visual differentiation zyada dramatic chahiye. Abhi sirf ek chhota badge hai. Card background + glow zyada punch chahiye.
+- [ ] **Live Game — Visual Tension** — Warning (70+) aur critical (85+) cards ka visual differentiation zyada dramatic chahiye.
 
 ---
 
 ## Code Structure
 
-- [ ] **Dead Files Delete Karo** — `sadasdasd.js`, duplicate `tailwind.config.js`, unused `src/App.tsx` (Vite template).
+- [x] **[DONE] Dead Files Delete Karo** — Fixed 2026-06-20. `sadasdasd.js`, duplicate `tailwind.config.js`, unused `src/App.tsx` deleted.
 
-- [ ] **LiveGame.tsx Split Karo** — ~700 lines mein `WinnerView`, `FullOverlay`, `Overlays` sab ek file mein hain. `WinnerView` aur `FullOverlay` ko `src/components/` mein alag files mein nikalo.
+- [x] **[DONE] LiveGame.tsx Split Karo** — Fixed 2026-06-20. `WinnerView` → `src/components/WinnerView.tsx`, `FullOverlay` → `src/components/FullOverlay.tsx`.
 
 ---
 
-## Stats System (Abhi Kuch Bhi Nahi Bana)
+## Stats System
 
-- [ ] **Stats — Game End pe DB mein Write Karo** — Har session complete hone pe `stats` table update karo: wins, closes, eliminations, survival rounds, average score per player.
+- [x] **[DONE] Stats — Game End pe DB mein Write Karo** — Fixed 2026-06-20. `writeStats()` in `useAppStore.ts` called from winner block. Writes wins, closes, eliminations, avg score, survival rounds, close streaks.
 
-- [ ] **Hall of Fame (Real Data)** — `Home.tsx` mein Mom/Pops/Hanz/Nanz hardcoded hain. `stats` DB se real data.
+- [x] **[DONE] Hall of Fame (Real Data)** — Fixed 2026-06-20. `Home.tsx` loads from `stats` + `players` DB. Shows top winner, top closer, most eliminated, total games.
 
-- [ ] **Real Stats Page** — Per-player: wins, closes, eliminations, average score.
+- [x] **[DONE] Real Stats Page** — Fixed 2026-06-20. `src/pages/StatsPage.tsx` — per-player card: wins, closes, eliminations, avg score, rounds, best streak. Accessible via "Stats & History" button on Home.
+
+- [x] **[DONE] Share Result Card (PNG + WhatsApp)** — Fixed 2026-06-20. html2canvas captures result card. Web Share API on Android, fallback download on desktop.
 
 - [ ] **Session History Browser** — Past sessions, round-by-round breakdown.
 
@@ -60,20 +62,6 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
-## Share & Social
-
-- [ ] **Share Result Card (PNG + WhatsApp)** — Winner screen pe. Styled card: winner, leaderboard, "Poo Poo 💩" roast. `html2canvas` + Web Share API.
-
----
-
 ## Future / Backlog
 
 - [ ] **Security Audit** — PWA local storage, IndexedDB, Web Share API, XSS in player names.
-
----
-
-## Decided / Won't Do
-
-- Scroll wheel for score entry — Numpad modal better hai.
-- External backend — IndexedDB kaafi hai.
-- Deployment — Already on Vercel.
