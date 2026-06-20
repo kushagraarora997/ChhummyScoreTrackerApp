@@ -152,6 +152,10 @@ export default function LiveGame({
                 ${
                   state === "eliminated"
                     ? "bg-[#1a0b0b] border-danger/30 opacity-60"
+                    : state === "critical"
+                    ? "bg-[#1a0606] border-danger/40"
+                    : state === "warning"
+                    ? "bg-[#17110a] border-warning/30"
                     : "bg-elevated border-white/5"
                 }
                 ${
@@ -191,7 +195,11 @@ border border-yellow-500/20
 </div>
                     </div>
 
-                    <div className="text-sm opacity-70">
+                    <div className={`text-sm font-medium ${
+                      state === "critical" ? "text-danger animate-pulse"
+                      : state === "warning" ? "text-warning"
+                      : "opacity-70"
+                    }`}>
                       Total: {total}
                     </div>
                   </div>
@@ -409,20 +417,40 @@ function Overlays({ onExit }: { onExit: () => void }) {
                         );
                       })}
 
-                      <button
-                        onClick={() => {
-                          setNumpad({ playerId: p.id });
-                          setNumInput(
-                            store.tempScores[p.id] !== undefined
-                              ? String(store.tempScores[p.id])
-                              : ""
-                          );
-                        }}
-                        className={`${isCloser ? "col-span-3" : ""} py-4 rounded-xl bg-card border border-dashed border-white/20 text-sm`}
-                      >
-                        Custom
-                      </button>
+                      {!isCloser && (
+                        <button
+                          onClick={() => {
+                            setNumpad({ playerId: p.id });
+                            setNumInput(
+                              store.tempScores[p.id] !== undefined
+                                ? String(store.tempScores[p.id])
+                                : ""
+                            );
+                          }}
+                          className="col-span-3 py-3 rounded-xl bg-card border border-dashed border-white/20 text-sm"
+                        >
+                          Custom
+                        </button>
+                      )}
                     </div>
+
+                    {(() => {
+                      const currentTotal = store.getTotals()[p.id] || 0;
+                      const pending = store.tempScores[p.id];
+                      if (pending === undefined) return null;
+                      const newTotal = currentTotal + pending;
+                      return (
+                        <div className={`mt-2 text-sm text-center font-semibold ${
+                          newTotal >= 100 ? "text-danger"
+                          : newTotal >= 85 ? "text-orange-400"
+                          : newTotal >= 70 ? "text-warning"
+                          : "text-success/80"
+                        }`}>
+                          {currentTotal} + {pending} = {newTotal}
+                          {newTotal >= 100 && " 💀"}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -508,16 +536,13 @@ function Overlays({ onExit }: { onExit: () => void }) {
       )}
 
       {/* WINNER */}
-      {store.ui.overlay.type ===
-        "winner" && (
-        <FullOverlay
-          title="Session Winner"
-          tone="success"
-        >
+      {store.ui.overlay.type === "winner" && (
+        <FullOverlay title="Session Winner" tone="success">
           <WinnerView
-            onClose={
-              store.closeOverlay
-            }
+            onClose={() => {
+              store.closeOverlay();
+              onExit();
+            }}
           />
         </FullOverlay>
       )}

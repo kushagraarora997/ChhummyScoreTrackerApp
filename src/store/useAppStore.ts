@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import { db, Player, Session, Round, Stats } from "../db";
+import { db, Player, Session, Round, Stats, Achievement } from "../db";
 import { nanoid } from "../utils/nanoid";
 
 async function writeStats(session: Session, allRounds: Round[]) {
@@ -65,6 +65,57 @@ async function writeStats(session: Session, allRounds: Round[]) {
   }
 
   await db.stats.put(base);
+
+  // Achievements
+  const achievements: Omit<Achievement, "id">[] = [];
+  const winnerId = session.winnerId;
+  const sid = session.id;
+  const now = Date.now();
+
+  if (winnerId) {
+    // ICE_COLD: winner finished with 0 total points
+    if ((lastTotals[winnerId] || 0) === 0) {
+      achievements.push({ playerId: winnerId, key: "ICE_COLD", sessionId: sid, createdAt: now });
+    }
+    // UNTOUCHABLE: winner never reached warning zone (70+) at any point
+    const neverWarn = allRounds.every((r) => (r.totals[winnerId] || 0) < 70);
+    if (neverWarn) {
+      achievements.push({ playerId: winnerId, key: "UNTOUCHABLE", sessionId: sid, createdAt: now });
+    }
+    // SURVIVOR: winner was in critical zone (85+) at some point but still won
+    const wasCritical = allRounds.some((r) => (r.totals[winnerId] || 0) >= 85);
+    if (wasCritical) {
+      achievements.push({ playerId: winnerId, key: "SURVIVOR", sessionId: sid, createdAt: now });
+    }
+  }
+
+  // CLUTCH_MASTER: player who closed the most rounds in this session (unique leader only)
+  const closeCount: Record<string, number> = {};
+  for (const r of allRounds) closeCount[r.closerId] = (closeCount[r.closerId] || 0) + 1;
+  const maxC = Math.max(0, ...Object.values(closeCount));
+  const leaders = Object.entries(closeCount).filter(([, v]) => v === maxC);
+  if (maxC > 0 && leaders.length === 1) {
+    achievements.push({ playerId: leaders[0][0], key: "CLUTCH_MASTER", sessionId: sid, createdAt: now });
+  }
+
+  // PATSY: first player to be eliminated
+  let firstOut: string | null = null;
+  let firstOutRound = Infinity;
+  for (const pid of session.playerIds) {
+    for (let i = 0; i < allRounds.length; i++) {
+      if ((allRounds[i].totals[pid] || 0) >= 100) {
+        if (i < firstOutRound) { firstOutRound = i; firstOut = pid; }
+        break;
+      }
+    }
+  }
+  if (firstOut) {
+    achievements.push({ playerId: firstOut, key: "PATSY", sessionId: sid, createdAt: now });
+  }
+
+  for (const a of achievements) {
+    await db.achievements.add({ ...a, id: nanoid() });
+  }
 }
 
 type UIOverlay =
