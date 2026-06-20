@@ -95,6 +95,56 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
+## Pending
+
+- [x] **[DONE] Back button on Player Setup** — Already existed. PlayerSetup has `onBack` prop; App.tsx passes `() => setRoute("home")`. No change needed.
+
+- [x] **[DONE] Redo last undo** — Fixed 2026-06-21. `lastUndoneRound: Round | null` added to store. `undoLastRound()` saves removed round to `lastUndoneRound`. `redoLastRound()` re-inserts it. `clearRedo()` dismisses it. Cleared on `endRoundStart`, `confirmRound`, `abandonSession`, `declareWinner`. UI: amber inline row below header shows "↩ Redo available" → tap → confirm row "Redo Round N? Yes/No".
+
+- [x] **[DONE] "How to Close" rules card always visible on Home** — Fixed 2026-06-21. Changed to a collapsible accordion below Hall of Fame. Tap "📖 How to Close ▼" to expand/collapse. Always present regardless of game count.
+
+- [x] **[DONE] Share card shows full leaderboard** — Fixed 2026-06-21. WinnerView now shows ranked list of all session players with final scores, 💀 for eliminated, gold highlight for winner. Existing rounds/closes summary kept below.
+
+---
+
+## UI Review — Self-Audit (2026-06-21)
+
+- [x] **[DONE] Trophy badge shows "🏆 0"** — Fixed 2026-06-21. Badge now only renders when `wins > 0`.
+
+- [x] **[DONE] Dealer indicator too easy to miss** — Fixed 2026-06-21. Removed the text row; added "🎴 Dealer" blue pill badge directly on the dealer's player card (same style as Closer badge).
+
+- [x] **[DONE] "Round N • Live Score Tracker" wrong line break** — Fixed 2026-06-21. Single unbroken line now.
+
+- [x] **[DONE] Player Setup doesn't sort by recent use** — Fixed 2026-06-21. `db.players.toArray()` result sorted by `lastUsedAt` descending before setting state.
+
+- [x] **[DONE] Home: "Stats & History" button too muted** — Fixed 2026-06-21. Removed `opacity-80` and `text-sm`; now `text-base font-medium` with `border-white/10`.
+
+- [x] **[DONE] Home: Hall of Fame rows have no visual hierarchy** — Fixed 2026-06-21. Each row now a coloured pill card: gold for Champion, amber for Closer, red for Patsy. Badge labels added on the right.
+
+- [x] **[DONE] Stats: Avg Score not rounded** — Fixed 2026-06-21. `r.avgScore.toFixed(1)` passed to StatBox. StatBox `value` prop now accepts `number | string`.
+
+- [x] **[DONE] Stats Charts: no section headers** — False positive. Headers already existed in the code (`"Wins per Player"`, `"Closes vs Eliminations"`).
+
+- [x] **[DONE] Elimination modal score not prominent** — Fixed 2026-06-21. Score is now a giant `text-7xl font-black text-danger` number. Name shown above it, "points — OUT" label below.
+
+---
+
+## batch-09 End-to-End Test (2026-06-21)
+
+**28/28 tests PASS.** All new features verified:
+- Home: Stats & History button style, How to Close accordion (collapse/expand) ✅
+- Hall of Fame: Champion (gold), Closer (amber), Patsy (red) hierarchy rows ✅
+- Live Game: Trophy badge hidden at 0, dealer pill on card, bottom bar single line ✅
+- Trophy badge appears after close, dealer pill moves to new closer ✅
+- Undo/Redo: unavailable before undo, available after undo; confirm row (Yes/No) ✅
+- Redo Yes: restores round, clears redo row; Redo No: clears redo; new round clears redo ✅
+- Elimination modal: "points — OUT" label, score value, Continue button ✅
+- Winner share card: both player names, 💀 for eliminated, pts shown ✅
+- Stats Players tab: Avg Score label visible after completed game ✅
+- PlayerSetup: players appear in grid ✅
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).

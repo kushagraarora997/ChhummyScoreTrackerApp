@@ -24,7 +24,10 @@ export default function PlayerSetup({
   const newSession = useAppStore((s) => s.newSession);
 
   useEffect(() => {
-    db.players.toArray().then(setAvailable);
+    db.players.toArray().then((all) => {
+      all.sort((a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0));
+      setAvailable(all);
+    });
   }, []);
 
   useEffect(() => {

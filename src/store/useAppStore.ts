@@ -139,6 +139,7 @@ interface AppState {
   players: Player[];
   activeSession?: Session;
   rounds: Round[];
+  lastUndoneRound: Round | null;
   ui: {
     overlay: UIOverlay;
     toast?: {
@@ -155,6 +156,8 @@ interface AppState {
   setScore: (playerId: string, value: number) => void;
   confirmRound: () => Promise<void>;
   undoLastRound: () => Promise<void>;
+  redoLastRound: () => Promise<void>;
+  clearRedo: () => void;
   declareWinner: (winnerId: string) => Promise<void>;
   pause: () => void;
   closeOverlay: () => void;
@@ -169,6 +172,7 @@ export const useAppStore = create<AppState>()(
   devtools((set, get) => ({
     players: [],
     rounds: [],
+    lastUndoneRound: null,
     ui: {
       overlay: { type: "none" },
     },
@@ -240,6 +244,7 @@ export const useAppStore = create<AppState>()(
 
     endRoundStart() {
       set((s) => ({
+        lastUndoneRound: null,
         ui: {
           ...s.ui,
           overlay: { type: "whoClosed" },
@@ -488,6 +493,7 @@ export const useAppStore = create<AppState>()(
       set({
         rounds: remain,
         activeSession: updated,
+        lastUndoneRound: last,
         ui: {
           overlay: { type: "none" },
           toast: {
@@ -495,6 +501,39 @@ export const useAppStore = create<AppState>()(
           },
         },
       });
+    },
+
+    async redoLastRound() {
+      const { lastUndoneRound, rounds, activeSession } = get();
+      if (!activeSession || !lastUndoneRound) return;
+
+      await db.rounds.put(lastUndoneRound);
+
+      const restored = [...rounds, lastUndoneRound].sort((a, b) => a.number - b.number);
+
+      const dealerIndex = activeSession.playerIds.indexOf(lastUndoneRound.closerId);
+
+      const updated: Session = {
+        ...activeSession,
+        dealerIndex,
+        lastRoundId: lastUndoneRound.id,
+      };
+
+      await db.sessions.put(updated);
+
+      set({
+        rounds: restored,
+        activeSession: updated,
+        lastUndoneRound: null,
+        ui: {
+          overlay: { type: "none" },
+          toast: { message: "Redid round" },
+        },
+      });
+    },
+
+    clearRedo() {
+      set({ lastUndoneRound: null });
     },
 
     pause() {
@@ -535,6 +574,7 @@ export const useAppStore = create<AppState>()(
 
       set((s) => ({
         activeSession: completed,
+        lastUndoneRound: null,
         ui: {
           ...s.ui,
           overlay: {
@@ -557,6 +597,7 @@ export const useAppStore = create<AppState>()(
       set({
         activeSession: undefined,
         rounds: [],
+        lastUndoneRound: null,
         ui: { overlay: { type: "none" } },
         tempScores: {},
       });

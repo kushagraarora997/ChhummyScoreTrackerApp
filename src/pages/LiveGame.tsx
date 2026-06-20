@@ -18,6 +18,7 @@ export default function LiveGame({
   const rounds = store.rounds;
   const totals = store.getTotals();
   const [undoConfirm, setUndoConfirm] = useState(false);
+  const [redoConfirm, setRedoConfirm] = useState(false);
 
   const players = useMemo(() => {
     const map = new Map<
@@ -126,7 +127,7 @@ export default function LiveGame({
           <span className="text-sm opacity-80">Undo Round {rounds.length}?</span>
           <div className="flex gap-2">
             <button
-              onClick={() => { store.undoLastRound(); setUndoConfirm(false); }}
+              onClick={() => { store.undoLastRound(); setUndoConfirm(false); setRedoConfirm(false); }}
               className="px-3 py-1 rounded-lg bg-danger text-white text-sm font-semibold"
             >
               Yes
@@ -141,14 +142,40 @@ export default function LiveGame({
         </div>
       )}
 
-      <div className="mt-1 text-sm opacity-70">
-        Dealer:{" "}
-        {
-          players.find(
-            (p) => p.id === dealerId
-          )?.name
-        }
-      </div>
+      {!undoConfirm && store.lastUndoneRound && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-card border border-amber-500/20 px-3 py-2">
+          {redoConfirm ? (
+            <>
+              <span className="text-sm opacity-80">Redo Round {store.lastUndoneRound.number}?</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { store.redoLastRound(); setRedoConfirm(false); }}
+                  className="px-3 py-1 rounded-lg bg-success text-black text-sm font-semibold"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => { store.clearRedo(); setRedoConfirm(false); }}
+                  className="px-3 py-1 rounded-lg bg-elevated text-sm"
+                >
+                  No
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-sm text-amber-400 opacity-80">↩ Redo available</span>
+              <button
+                onClick={() => setRedoConfirm(true)}
+                className="px-3 py-1 rounded-lg bg-amber-500/20 text-amber-300 text-sm font-semibold border border-amber-500/30"
+              >
+                Redo
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
 
       {/* Player Cards */}
       <div className="mt-4 grid gap-3">
@@ -204,19 +231,16 @@ export default function LiveGame({
                       <div className="text-lg font-semibold">
                         {p.name}
                       </div>
-
- <div className="
-flex items-center gap-1
-px-2 py-1
-rounded-full
-bg-yellow-500/10
-text-yellow-400
-text-xs
-font-bold
-border border-yellow-500/20
-">
-  🏆 {wins}
-</div>
+                      {wins > 0 && (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 text-xs font-bold border border-yellow-500/20">
+                          🏆 {wins}
+                        </div>
+                      )}
+                      {p.id === dealerId && (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-500/15 text-blue-300 text-xs font-semibold border border-blue-500/20">
+                          🎴 Dealer
+                        </div>
+                      )}
                     </div>
 
                     <div className={`text-sm font-medium ${
@@ -264,8 +288,7 @@ border border-yellow-500/20
       {/* Bottom Action */}
       <div className="fixed left-0 right-0 bottom-0 p-4 safe bg-gradient-to-t from-background via-background to-transparent">
         <div className="mb-2 text-center text-xs opacity-50 tracking-wide uppercase">
-          Round {roundNumber} • Live
-          Score Tracker
+          Round {roundNumber} • Live Score Tracker
         </div>
 
         {survivors.length === 1 ? (
@@ -370,8 +393,8 @@ function Overlays({ onExit }: { onExit: () => void }) {
           </div>
 
           <div className="mt-4 text-center text-xs opacity-50 italic">
-            “Jo 100 paar gaya… woh
-            itihaas ban gaya 😭”
+            "Jo 100 paar gaya… woh
+            itihaas ban gaya 😭"
           </div>
 
           <button
@@ -529,32 +552,20 @@ function Overlays({ onExit }: { onExit: () => void }) {
           tone="danger"
         >
           <div className="text-center">
-            <div className="text-3xl mb-2">
-              🔴{" "}
-              {
-                store.ui.overlay
-                  .name
-              }{" "}
-              ELIMINATED
+            <div className="text-2xl font-bold mb-1">
+              💀 {store.ui.overlay.name}
             </div>
-
-            <div className="opacity-80 mb-4">
-              Reached{" "}
-              {
-                store.ui.overlay
-                  .total
-              }
+            <div className="text-7xl font-black text-danger my-4">
+              {store.ui.overlay.total}
             </div>
+            <div className="text-sm opacity-60 mb-4 uppercase tracking-wider">points — OUT</div>
 
-            <div className="italic opacity-70">
-              “Ye dukh kahe khatam
-              nahi hota 😭”
+            <div className="italic opacity-70 text-sm">
+              "Ye dukh kahe khatam nahi hota 😭"
             </div>
 
             <button
-              onClick={
-                store.closeOverlay
-              }
+              onClick={store.closeOverlay}
               className="mt-6 w-full py-3 rounded-2xl bg-card border border-white/10"
             >
               Continue

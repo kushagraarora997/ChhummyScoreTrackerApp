@@ -203,7 +203,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                         <StatBox label="Wins" value={r.wins} highlight={r.wins > 0} />
                         <StatBox label="Closes" value={r.closes} />
                         <StatBox label="Elim." value={r.eliminations} tone="danger" />
-                        <StatBox label="Avg Score" value={r.avgScore} />
+                        <StatBox label="Avg Score" value={r.avgScore.toFixed(1)} />
                         <StatBox label="Rounds" value={r.roundsPlayed} />
                         <StatBox label="Best Streak" value={r.bestStreak} />
                       </div>
@@ -366,7 +366,7 @@ function StatBox({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   highlight?: boolean;
   tone?: "danger";
 }) {

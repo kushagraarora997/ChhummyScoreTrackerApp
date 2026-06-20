@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "../store/useAppStore";
-import { db, Player } from "../db";
+import { db } from "../db";
+import type { Player } from "../db";
 
 interface HallEntry {
   name: string;
@@ -38,6 +39,7 @@ export default function Home({
 }) {
   const active = useAppStore((s) => s.activeSession);
   const [hall, setHall] = useState<HallData | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -82,46 +84,77 @@ export default function Home({
           </button>
           <button
             onClick={onStats}
-            className="w-full py-3 rounded-2xl bg-card text-text border border-white/5 text-sm opacity-80"
+            className="w-full py-3 rounded-2xl bg-card text-text border border-white/10 text-base font-medium"
           >
             📊 Stats &amp; History
           </button>
         </div>
 
         <div className="mt-8 rounded-2xl bg-card p-4 border border-white/5">
-          <div className="text-lg font-semibold">🏆 Hall of Fame</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-lg font-semibold">🏆 Hall of Fame</div>
+            {hall && hall.totalGames > 0 && (
+              <div className="text-xs opacity-40">{hall.totalGames} game{hall.totalGames !== 1 ? "s" : ""}</div>
+            )}
+          </div>
 
           {hall && hall.totalGames > 0 ? (
-            <div className="mt-3 space-y-2 text-sm opacity-80">
+            <div className="space-y-2">
               {hall.topWinner && (
-                <div>{hall.topWinner.emoji ?? "👑"} {hall.topWinner.name} — {hall.topWinner.count} win{hall.topWinner.count !== 1 ? "s" : ""}</div>
+                <div className="flex items-center gap-3 p-2 rounded-xl bg-yellow-500/8 border border-yellow-500/15">
+                  <span className="text-xl">{hall.topWinner.emoji ?? "👑"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold truncate">{hall.topWinner.name}</div>
+                    <div className="text-xs text-yellow-400 font-medium">{hall.topWinner.count} win{hall.topWinner.count !== 1 ? "s" : ""}</div>
+                  </div>
+                  <span className="text-xs text-yellow-500 font-bold uppercase tracking-wide">Champion</span>
+                </div>
               )}
               {hall.topCloser && (
-                <div>🎯 {hall.topCloser.name} — {hall.topCloser.count} close{hall.topCloser.count !== 1 ? "s" : ""}</div>
+                <div className="flex items-center gap-3 p-2 rounded-xl bg-amber-500/8 border border-amber-500/15">
+                  <span className="text-xl">🎯</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{hall.topCloser.name}</div>
+                    <div className="text-xs text-amber-400">{hall.topCloser.count} close{hall.topCloser.count !== 1 ? "s" : ""}</div>
+                  </div>
+                  <span className="text-xs text-amber-500 font-bold uppercase tracking-wide">Closer</span>
+                </div>
               )}
               {hall.mostEliminated && (
-                <div>💀 {hall.mostEliminated.name} — {hall.mostEliminated.count} elimination{hall.mostEliminated.count !== 1 ? "s" : ""}</div>
+                <div className="flex items-center gap-3 p-2 rounded-xl bg-red-500/8 border border-red-500/15">
+                  <span className="text-xl">💀</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{hall.mostEliminated.name}</div>
+                    <div className="text-xs text-red-400">{hall.mostEliminated.count} elimination{hall.mostEliminated.count !== 1 ? "s" : ""}</div>
+                  </div>
+                  <span className="text-xs text-red-500 font-bold uppercase tracking-wide">Patsy</span>
+                </div>
               )}
-              <div className="pt-1 opacity-50 text-xs">{hall.totalGames} game{hall.totalGames !== 1 ? "s" : ""} played total</div>
             </div>
           ) : (
-            <div className="mt-3 text-sm opacity-50 italic">
+            <div className="text-sm opacity-50 italic">
               Koi data nahi abhi. Pehle khelke aao! 🃏
             </div>
           )}
         </div>
 
-        {(!hall || hall.totalGames === 0) && (
-          <div className="mt-4 rounded-2xl bg-card p-4 border border-white/5">
-            <div className="text-sm font-semibold mb-3">📖 How to Close</div>
-            <div className="space-y-2 text-sm opacity-70">
+        <div className="mt-4 rounded-2xl bg-card border border-white/5 overflow-hidden">
+          <button
+            onClick={() => setRulesOpen((o) => !o)}
+            className="w-full flex items-center justify-between p-4 text-left"
+          >
+            <div className="text-sm font-semibold">📖 How to Close</div>
+            <div className="text-xs opacity-40">{rulesOpen ? "▲" : "▼"}</div>
+          </button>
+          {rulesOpen && (
+            <div className="px-4 pb-4 space-y-2 text-sm opacity-70 border-t border-white/5 pt-3">
               <div>🃏 1 pure sequence (3 cards) mandatory</div>
               <div>✌️ Remaining deadwood ≤ 5 to close</div>
               <div>💀 100+ points = eliminated</div>
               <div>🏆 Last player under 100 wins</div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="text-center text-[11px] opacity-40 mt-6 italic">
           "Ghar toot jaaye, par score yaad rehna chahiye."

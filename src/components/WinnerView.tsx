@@ -15,6 +15,10 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
 
   const winner = s.players.find((p) => p.id === winnerId);
 
+  const totals = s.getTotals();
+  const sessionPlayers = s.players.filter((p) => s.activeSession?.playerIds.includes(p.id));
+  const ranked = [...sessionPlayers].sort((a, b) => (totals[a.id] ?? 0) - (totals[b.id] ?? 0));
+
   async function handleShare() {
     if (!cardRef.current || sharing) return;
     setSharing(true);
@@ -75,21 +79,48 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
         <div className="mt-2 text-sm text-amber-400 uppercase tracking-widest font-semibold">
           Always Agitated Aroras
         </div>
-        <div className="mt-5 flex justify-center gap-6 text-center">
+
+        <div className="mt-5 space-y-2">
+          {ranked.map((p, i) => {
+            const total = totals[p.id] ?? 0;
+            const isWinner = p.id === winnerId;
+            const isElim = total >= 100;
+            return (
+              <div
+                key={p.id}
+                className={`flex items-center justify-between px-3 py-2 rounded-xl ${
+                  isWinner
+                    ? "bg-yellow-500/15 border border-yellow-500/30"
+                    : isElim
+                    ? "bg-red-500/10 border border-red-500/20 opacity-70"
+                    : "bg-white/5 border border-white/8"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs opacity-50 w-4">{i + 1}</span>
+                  <span className="text-lg">{p.emoji ?? "🙂"}</span>
+                  <span className={`text-sm font-semibold ${isWinner ? "text-yellow-300" : ""}`}>{p.name}</span>
+                  {isElim && <span className="text-xs text-red-400">💀</span>}
+                </div>
+                <span className={`text-sm font-bold tabular-nums ${isWinner ? "text-yellow-300" : isElim ? "text-red-400" : "opacity-80"}`}>
+                  {total} pts
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex justify-center gap-6 text-center pt-3 border-t border-white/8">
           <div>
-            <div className="text-2xl font-bold">{summary.rounds}</div>
+            <div className="text-xl font-bold">{summary.rounds}</div>
             <div className="text-[10px] opacity-50 uppercase tracking-wide">Rounds</div>
           </div>
           <div>
-            <div className="text-2xl font-bold">{summary.closes}</div>
+            <div className="text-xl font-bold">{summary.closes}</div>
             <div className="text-[10px] opacity-50 uppercase tracking-wide">Closes</div>
           </div>
-          <div>
-            <div className="text-2xl font-bold">{summary.final}</div>
-            <div className="text-[10px] opacity-50 uppercase tracking-wide">Final</div>
-          </div>
         </div>
-        <div className="mt-5 text-sm italic opacity-60">"Clutch maar diya" 🃏</div>
+        <div className="mt-4 text-sm italic opacity-60">"Clutch maar diya" 🃏</div>
       </div>
 
       {shareErr && (
