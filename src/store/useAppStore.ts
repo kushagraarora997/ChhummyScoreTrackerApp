@@ -42,6 +42,7 @@ interface AppState {
   undoLastRound: () => Promise<void>;
   pause: () => void;
   closeOverlay: () => void;
+  abandonSession: () => Promise<void>;
   getTotals: () => Record<string, number>;
 
   tempScores: Record<string, number>;
@@ -262,26 +263,21 @@ export const useAppStore = create<AppState>()(
         );
 
       if (justEliminated.length > 0) {
-        const pmap = await db.players.toArray();
+        navigator.vibrate?.([200, 100, 200]);
 
-        const first = justEliminated[0];
-
-        const name =
-          pmap.find((p) => p.id === first)?.name ||
-          "Player";
-
-        set((s) => ({
-          ui: {
-            ...s.ui,
-            overlay: {
-              type: "eliminated",
-              name,
-              total: totals[first],
+        if (survivors.length > 1) {
+          const pmap = await db.players.toArray();
+          const first = justEliminated[0];
+          const name =
+            pmap.find((p) => p.id === first)?.name || "Player";
+          set((s) => ({
+            ui: {
+              ...s.ui,
+              overlay: { type: "eliminated", name, total: totals[first] },
             },
-          },
-        }));
-
-        return;
+          }));
+          return;
+        }
       }
 
       if (survivors.length === 1) {
@@ -377,6 +373,22 @@ export const useAppStore = create<AppState>()(
           overlay: { type: "none" },
         },
       }));
+    },
+
+    async abandonSession() {
+      const { activeSession } = get();
+      if (!activeSession) return;
+      await db.sessions.put({
+        ...activeSession,
+        status: "abandoned",
+        endedAt: Date.now(),
+      });
+      set({
+        activeSession: undefined,
+        rounds: [],
+        ui: { overlay: { type: "none" } },
+        tempScores: {},
+      });
     },
   }))
 );

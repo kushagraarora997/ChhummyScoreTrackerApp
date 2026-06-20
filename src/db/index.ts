@@ -16,7 +16,7 @@ export interface Session {
   dealerIndex: number;
   winnerId?: string;
   lastRoundId?: string;
-  status: "active" | "completed";
+  status: "active" | "completed" | "abandoned";
 }
 
 export interface Round {

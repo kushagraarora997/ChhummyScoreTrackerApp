@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CHIPS = [0, 1, 2, 3, 4, 5, 10, 15, 20];
+const CLOSER_CHIPS = [0, 1, 2, 3, 4, 5];
 
 export default function LiveGame({
   onExit,
@@ -264,8 +265,11 @@ border border-yellow-500/20
 
 function Overlays({ onExit }: { onExit: () => void }) {
   const store = useAppStore();
+  const [endGameConfirm, setEndGameConfirm] = useState(false);
+  const [validErr, setValidErr] = useState<string | null>(null);
 
-  const session = store.activeSession!;
+  const session = store.activeSession;
+  if (!session) return null;
 
   const players = store.players.filter(
     (p) =>
@@ -352,144 +356,100 @@ function Overlays({ onExit }: { onExit: () => void }) {
 
                 return total < 100;
               })
-              .map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-2xl bg-elevated p-3 border border-white/5"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="text-2xl">
-                        {p.emoji ?? "🙂"}
-                      </div>
+              .map((p) => {
+                const isCloser =
+                  store.ui.overlay.type === "enterScores" &&
+                  store.ui.overlay.closerId === p.id;
+                const chips = isCloser ? CLOSER_CHIPS : CHIPS;
 
-                      <div className="font-semibold">
-                        {p.name}
+                return (
+                  <div
+                    key={p.id}
+                    className="rounded-2xl bg-elevated p-3 border border-white/5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="text-2xl">{p.emoji ?? "🙂"}</div>
+                        <div className="font-semibold">{p.name}</div>
                       </div>
-                    </div>
-
-                    {store.ui.overlay
-                      .type ===
-                      "enterScores" &&
-                      store.ui.overlay
-                        .closerId ===
-                        p.id && (
+                      {isCloser && (
                         <span className="px-2 py-1 rounded-full text-xs bg-success/20 text-success">
                           🏁 Closer
                         </span>
                       )}
-                  </div>
+                    </div>
 
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {CHIPS.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() =>
-                          store.setTempScore(
-                            p.id,
-                            c
-                          )
-                        }
-                        className={`
-                          py-4
-                          rounded-xl
-                          text-lg
-                          font-semibold
-                          transition
-                          active:scale-[0.97]
-                          ${
-                            store
-                              .tempScores[
-                              p.id
-                            ] === c
-                              ? "bg-success text-black"
-                              : "bg-card border border-white/10"
-                          }
-                        `}
-                      >
-                        {c}
-                      </button>
-                    ))}
-
-                    <button
-                      onClick={() => {
-                        const v = Number(
-                          prompt(
-                            "Custom score"
-                          ) || "0"
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {chips.map((c) => {
+                        const selected = store.tempScores[p.id] === c;
+                        return (
+                          <button
+                            key={c}
+                            onClick={() => {
+                              store.setTempScore(p.id, c);
+                              setValidErr(null);
+                            }}
+                            className={`
+                              rounded-xl font-semibold transition active:scale-[0.97]
+                              ${c === 0 ? "col-span-3 py-3 text-xl" : "py-4 text-lg"}
+                              ${selected
+                                ? "bg-success text-black"
+                                : c === 0
+                                  ? "bg-amber-500/15 border border-amber-500/40 text-amber-300"
+                                  : "bg-card border border-white/10"
+                              }
+                            `}
+                          >
+                            {c}
+                          </button>
                         );
+                      })}
 
-                        if (
-                          !Number.isNaN(v) &&
-                          v >= 0
-                        ) {
-                          store.setTempScore(
-                            p.id,
-                            v
-                          );
-                        }
-                      }}
-                      className="py-4 rounded-xl bg-card border border-dashed border-white/20 text-sm"
-                    >
-                      Custom
-                    </button>
+                      <button
+                        onClick={() => {
+                          const v = Number(prompt("Custom score") || "0");
+                          if (!Number.isNaN(v) && v >= 0) {
+                            store.setTempScore(p.id, v);
+                            setValidErr(null);
+                          }
+                        }}
+                        className={`${isCloser ? "col-span-3" : ""} py-4 rounded-xl bg-card border border-dashed border-white/20 text-sm`}
+                      >
+                        Custom
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
 
           <div className="mt-6 sticky bottom-0 bg-inherit pt-3">
+            {validErr && (
+              <div className="mb-3 text-center text-sm text-danger">
+                {validErr}
+              </div>
+            )}
             <button
               onClick={() => {
-                const alivePlayers =
-                  players.filter((p) => {
-                    const total =
-                      store.getTotals()[
-                        p.id
-                      ] || 0;
-
-                    return total < 100;
-                  });
-
-                const missing =
-                  alivePlayers.some(
-                    (p) =>
-                      store.tempScores[
-                        p.id
-                      ] === undefined
-                  );
-
+                const alivePlayers = players.filter(
+                  (p) => (store.getTotals()[p.id] || 0) < 100
+                );
+                const missing = alivePlayers.some(
+                  (p) => store.tempScores[p.id] === undefined
+                );
                 if (missing) {
-                  alert(
-                    "Bhai sabka score daal 😭"
-                  );
+                  setValidErr("Sabka score daal pehle 😭");
                   return;
                 }
-
-                const closerId =
-                  store.ui.overlay
-                    .type ===
-                  "enterScores"
-                    ? store.ui.overlay
-                        .closerId
+                const cId =
+                  store.ui.overlay.type === "enterScores"
+                    ? store.ui.overlay.closerId
                     : undefined;
-
-                if (closerId) {
-                  const closerScore =
-                    store.tempScores[
-                      closerId
-                    ];
-
-                  if (
-                    closerScore > 5
-                  ) {
-                    alert(
-                      "Closer 5 se upar score daalke jeet nahi sakta 😭"
-                    );
-                    return;
-                  }
+                if (cId && store.tempScores[cId] > 5) {
+                  setValidErr("Closer 5 se zyada score nahi ho sakta 😭");
+                  return;
                 }
-
+                setValidErr(null);
                 store.confirmRound();
               }}
               className="w-full py-4 rounded-2xl bg-success text-black text-lg font-semibold shadow-green"
@@ -558,23 +518,45 @@ function Overlays({ onExit }: { onExit: () => void }) {
       )}
 
       {/* PAUSE */}
-      {store.ui.overlay.type ===
-        "pause" && (
-        <FullOverlay title="Game Paused ⏸">
-          <div className="grid gap-3">
-            <button
-              onClick={store.closeOverlay}
-              className="w-full py-4 rounded-2xl bg-green-500 text-black text-lg font-semibold"
-            >
-              Resume Game
-            </button>
-            <button
-              onClick={onExit}
-              className="w-full py-3 rounded-2xl bg-card border border-white/10"
-            >
-              Exit to Home
-            </button>
-          </div>
+      {store.ui.overlay.type === "pause" && (
+        <FullOverlay title={endGameConfirm ? "End Game?" : "Game Paused ⏸"}>
+          {endGameConfirm ? (
+            <div className="grid gap-3">
+              <p className="text-center text-sm opacity-60 mb-1">
+                Session band ho jayega. Scores ud jayenge.
+              </p>
+              <button
+                onClick={() => {
+                  onExit();
+                  store.abandonSession();
+                }}
+                className="w-full py-4 rounded-2xl bg-danger text-white text-lg font-semibold"
+              >
+                Haan, band karo
+              </button>
+              <button
+                onClick={() => setEndGameConfirm(false)}
+                className="w-full py-3 rounded-2xl bg-card border border-white/10"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              <button
+                onClick={() => { setEndGameConfirm(false); store.closeOverlay(); }}
+                className="w-full py-4 rounded-2xl bg-green-500 text-black text-lg font-semibold"
+              >
+                Resume Game
+              </button>
+              <button
+                onClick={() => setEndGameConfirm(true)}
+                className="w-full py-3 rounded-2xl bg-card border border-danger/40 text-danger"
+              >
+                End Game
+              </button>
+            </div>
+          )}
         </FullOverlay>
       )}
     </AnimatePresence>

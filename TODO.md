@@ -6,66 +6,74 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ## Bugs (Fix These First)
 
-- [ ] **[CRITICAL] New Player Name + Who Closed Broken** — Confirmed via Playwright test (2026-06-20). Root cause: `PlayerSetup` writes new players to IndexedDB but only updates local React state. `newSession()` saves session but never reloads `store.players` from DB. Consequence 1: all player cards show "Player". Consequence 2: "Who Closed?" modal renders ZERO buttons (it filters `store.players` which is empty) — round flow completely broken for new players. Fix: one line in `newSession()` — add `const players = await db.players.toArray()` and include in `set({})` call.
+- [x] **[DONE] New Player Name + Who Closed Broken** — Fixed 2026-06-20. `newSession()` now reloads players from DB.
 
-- [ ] **Pull-to-Refresh Block Karo** — Browser mein upar se pull karne pe page refresh ho jaata hai, game state ud jaati hai. `overscroll-behavior: none` CSS se block karna hai.
+- [x] **[DONE] Pull-to-Refresh Block** — Fixed 2026-06-20. `overscroll-behavior: none` in CSS.
 
-- [ ] **App Phone Lock/Background pe Survive Kare** — Phone band ya lock pe app active session lose kar sakti hai. `visibilitychange` + Page Lifecycle API se handle karna hai — session IndexedDB mein safe hai, bas resume flow trigger karna hai wapas aane pe.
+- [x] **[DONE] App Phone Lock/Background** — Fixed 2026-06-20. `visibilitychange` + Pause overlay with Resume/Exit.
+
+- [ ] **[BUG] Winner Not Shown When Last Player Eliminated** — `confirmRound()` does early `return` after showing elimination overlay. `survivors.length === 1` check never runs. Fix: when last elimination happens, skip elimination modal and go straight to winner overlay.
+
+- [ ] **[BUG] alert() Calls in Score Entry** — Two `window.alert()` calls in "Confirm Round" validation: (1) "Bhai sabka score daal" (2) "Closer 5 se upar score nahi". Replace with inline red error message above Confirm button.
 
 ---
 
 ## Live Game Improvements
 
-- [ ] **Splash Screen** — Increase display time. "Always Agitated Aroras" prominently dikhao. Abhi blink-and-miss hai.
+- [ ] **End Game / Abandon Session** — Pause overlay mein "End Game" button chahiye. Click karo → inline confirmation → `abandonSession()` → DB mein session "abandoned" mark hota hai → Home pe navigate. Home screen pe stale session nahi dikhega.
 
-- [ ] **Numeric Keypad Modal** — `window.prompt()` hatao custom score entry se. Bottom slide-up sheet banao — bada numpad (0–9), top pe running total, confirm button. Swiggy OTP screen vibes.
+- [ ] **Splash Screen** — Logo chhota hai, tagline barely visible. Logo bada karo (8xl), "Always Agitated Aroras" amber color mein uppercase large font. Family ka naam hero treatment deserve karta hai.
 
-- [ ] **Autopause on App Backgrounding** — `visibilitychange` event se auto-pause. Wapas aao toh "Wapas aa gaye! Resume karein?" confirmation lo.
+- [ ] **Score Entry — "0" chip full width + closer only sees 0–5** — Two changes: (1) "0" chip col-span-3 (full row), amber highlight jab unselected. (2) Closer ke liye sirf 0–5 chips dikhao, 10/15/20 nahi (closer ki max deadwood 5 hai per game rules).
 
-- [ ] **Vibration on Elimination** — `navigator.vibrate([200, 100, 200])` — ek line ka kaam, bada dramatic impact. Android Chrome pe supported hai.
+- [ ] **Numeric Keypad Modal** — `window.prompt()` hatao Add Player se. Bottom slide-up sheet: bada numpad (0–9), confirm button. Custom score entry ke liye bhi same modal.
 
-- [ ] **Score Entry — "0" chip prominent banana** — Multiple players ek hi round mein 0 score kar sakte hain (Chhummy rule). "0" chip sabse pehle aur bada hona chahiye.
+- [ ] **Vibration on Elimination** — `navigator.vibrate([200, 100, 200])` — ek line, bada dramatic moment.
+
+- [ ] **Score Entry — Running Total Preview** — While entering scores, dikhao current total + new score = potential new total. Helps track who's close to 100.
+
+- [ ] **Live Game — Visual Tension** — Warning (70+) aur critical (85+) cards ka visual differentiation zyada dramatic chahiye. Abhi sirf ek chhota badge hai. Card background + glow zyada punch chahiye.
+
+---
+
+## Code Structure
+
+- [ ] **Dead Files Delete Karo** — `sadasdasd.js`, duplicate `tailwind.config.js`, unused `src/App.tsx` (Vite template).
+
+- [ ] **LiveGame.tsx Split Karo** — ~700 lines mein `WinnerView`, `FullOverlay`, `Overlays` sab ek file mein hain. `WinnerView` aur `FullOverlay` ko `src/components/` mein alag files mein nikalo.
 
 ---
 
 ## Stats System (Abhi Kuch Bhi Nahi Bana)
 
-Stats ka koi role nahi hai abhi — schema bani hai DB mein, koi likhta nahi, koi padhta nahi. Poora system zero se banana hai. Ye foundational kaam pehle karo, baaki sab depend karta hai isi pe.
+- [ ] **Stats — Game End pe DB mein Write Karo** — Har session complete hone pe `stats` table update karo: wins, closes, eliminations, survival rounds, average score per player.
 
-- [ ] **Stats — Game End pe DB mein Write Karo** — Har session complete hone pe `stats` table update karo: wins, closes, eliminations, survival rounds, average score per player. Ye poore stats system ki neenv hai. Iske bina Hall of Fame, dashboards, achievements sab bekar hain.
+- [ ] **Hall of Fame (Real Data)** — `Home.tsx` mein Mom/Pops/Hanz/Nanz hardcoded hain. `stats` DB se real data.
 
-- [ ] **Hall of Fame (Real Data)** — `Home.tsx` mein Mom/Pops/Hanz/Nanz hardcoded hain. `stats` DB se real data padhke replace karo. Pehle "Stats Write" wala kaam khatam hona chahiye.
+- [ ] **Real Stats Page** — Per-player: wins, closes, eliminations, average score.
 
-- [ ] **Real Stats Page** — Dedicated stats page banao. Per-player: total wins, closes, eliminations, average score. `stats` aur `achievements` DB tables se data aayega.
+- [ ] **Session History Browser** — Past sessions, round-by-round breakdown.
 
-- [ ] **Session History Browser** — Past sessions browse karo — date, players, round-by-round breakdown, who got eliminated when. `sessions` + `rounds` tables mein data already hai.
+- [ ] **Achievements — Write + Display** — ICE_COLD, UNTOUCHABLE, SURVIVOR, CLUTCH_MASTER, PATSY.
 
-- [ ] **Achievements — Write + Display** — Schema bana hua hai, kabhi use nahi hua. Game end pe check karo aur write karo: ICE_COLD (3 closes in a row), UNTOUCHABLE (win below 25), SURVIVOR (20+ rounds), CLUTCH_MASTER (close above 90), PATSY (most eliminations). Stats Page aur Winner screen pe display karo.
-
-- [ ] **Weekly / Monthly Dashboard** — Recharts already imported hai (unused). Weekly wins/closes bar chart, monthly trend lines. Stats write kaam hone ke baad implement karo.
+- [ ] **Weekly / Monthly Dashboard** — Recharts charts.
 
 ---
 
 ## Share & Social
 
-- [ ] **Share Result Card (PNG + WhatsApp)** — Winner screen pe kaam karne wala share button banana hai. Styled card: winner (crown, bada naam), full leaderboard, elimination order, "Poo Poo 💩" roast for worst performer. `html2canvas` se PNG, Web Share API se native WhatsApp/Instagram sheet. Desktop pe download fallback.
-
----
-
-## Cleanup
-
-- [ ] **Dead Files Hatao** — `sadasdasd.js`, duplicate `tailwind.config.js`, unused `src/App.tsx` (Vite template). Recharts bhi hatao agar stats page mein use nahi karna.
+- [ ] **Share Result Card (PNG + WhatsApp)** — Winner screen pe. Styled card: winner, leaderboard, "Poo Poo 💩" roast. `html2canvas` + Web Share API.
 
 ---
 
 ## Future / Backlog
 
-- [ ] **Security Audit** — Full security review of the app. To be done once core features are stable. Flag: PWA local storage, IndexedDB data exposure, Web Share API content, XSS surface in player names.
+- [ ] **Security Audit** — PWA local storage, IndexedDB, Web Share API, XSS in player names.
 
 ---
 
 ## Decided / Won't Do
 
-- Scroll wheel for score entry — Numpad modal better hai. Revisit sirf agar user requests kare.
-- External backend (Supabase/Firebase) — Overkill. IndexedDB kaafi hai jab tak cross-device sync explicitly nahi manga.
-- Deployment — Already done. GitHub → Vercel linked hai.
+- Scroll wheel for score entry — Numpad modal better hai.
+- External backend — IndexedDB kaafi hai.
+- Deployment — Already on Vercel.
