@@ -31,10 +31,14 @@ metadata:
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
-**Remaining structural debt (after 2026-06-21 cleanup — items 1-3 and 5 were FIXED):**
-1. **`getTotals()` called 4+ times per render in EnterScores** — once for filter, once per player for display, once for running total preview, once in confirm handler. Not a performance issue at current scale but redundant.
-2. **`confirmRound()` is 100+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie, triggers overlays all in one function. Acceptable at this scale; risky to touch without care.
-3. No lazy loading — all pages imported eagerly (acceptable for this app size).
+**Remaining structural debt (as of 2026-06-21):**
+1. **`confirmRound()` is 100+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie, triggers overlays all in one function. Acceptable at this scale; risky to touch without care.
+2. No lazy loading — all pages imported eagerly (acceptable for this app size).
+
+**Sound utility (2026-06-21):**
+- `src/utils/sound.ts` — Web Audio API tones. `soundWinner()`, `soundElimination()`, `soundConfirm()`.
+- All wrapped in try/catch; check `document.hidden` before playing.
+- Called from `useAppStore.ts` in `confirmRound()` and `declareWinner()`.
 
 **New actions added (2026-06-21):**
 - `declareWinner(winnerId)`: manually declare winner without a round — gets rounds/totals, marks session completed, calls writeStats, sets winner overlay. Used by End Game button when survivors.length === 1.

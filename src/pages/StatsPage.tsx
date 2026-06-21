@@ -142,6 +142,8 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
     Eliminations: r.eliminations,
   }));
 
+  const winsChartData = chartData.filter((d) => d.Wins > 0);
+
   return (
     <div className="min-h-screen bg-background text-text pb-12">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -314,21 +316,25 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                     <div className="text-sm font-semibold mb-4 opacity-70 uppercase tracking-wide">
                       Wins per Player
                     </div>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
-                        <XAxis dataKey="name" tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <Tooltip
-                          contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 12, fontSize: 12 }}
-                          cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                        />
-                        <Bar dataKey="Wins" radius={[6, 6, 0, 0]}>
-                          {chartData.map((_, i) => (
-                            <Cell key={i} fill={i === 0 ? "#22C55E" : "#374151"} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {winsChartData.length === 0 ? (
+                      <div className="text-center opacity-40 py-8 text-sm italic">No wins yet</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={winsChartData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                          <XAxis dataKey="name" tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 12, fontSize: 12 }}
+                            cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                          />
+                          <Bar dataKey="Wins" radius={[6, 6, 0, 0]}>
+                            {winsChartData.map((_, i) => (
+                              <Cell key={i} fill={i === 0 ? "#22C55E" : "#374151"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
 
                   <div className="rounded-2xl bg-card border border-white/5 p-4">

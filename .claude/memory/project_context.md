@@ -48,14 +48,19 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Emoji circular backdrop (bg-white/10) behind all emoji instances for dark emoji visibility
 - Modularized overlay components (2026-06-21): WhoClosed, EnterScores, EliminationOverlay, WinnerOverlay, PauseOverlay each in own file under `src/components/overlays/`
 
-**Pending UI Issues (from self-audit 2026-06-21, all in TODO.md):**
-1. Player Setup empty state looks broken — lone dashed box in black void
-2. Who Closed — last card stranded (odd player count, grid-cols-2)
-3. Live game "Total: 0" reads like a form label — should be a bold right-aligned number
-4. Emoji circle invisible on selected (green) player cards in PlayerSetup
-5. Score entry chips slightly cramped (py-4 → py-5)
-6. Winner screen needs more celebration (static text, no animation)
-7. Stats chart: 0-win players show blank column, looks like missing data
+**All UI Audit items resolved (2026-06-21):**
+1. Player Setup empty state — "Sab ko add karo! 👇" heading added ✅
+2. Who Closed odd player count — col-span-2 for last card in odd list ✅
+3. Live game score — right-aligned `text-2xl font-black` number, "Total:" removed ✅
+4. Emoji circle on selected cards — `bg-black/20` when active (green bg) ✅
+5. Score entry chips — `py-5` (was py-4) ✅
+6. Winner screen — emoji scale-bounce on mount, "SURVIVES" fade+slide-up ✅
+7. Stats chart — `winsChartData` filters 0-win players from Wins chart ✅
+
+**Sound feedback added (2026-06-21):**
+- `src/utils/sound.ts` — soundWinner() (C→E→G fanfare), soundElimination() (A→E sawtooth), soundConfirm() (30ms tick)
+- Called from confirmRound() and declareWinner() in useAppStore.ts
+- Vibration: `[100, 50, 100, 50, 300]` on winner, `[200, 100, 200]` on elimination
 
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)

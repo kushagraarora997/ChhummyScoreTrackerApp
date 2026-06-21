@@ -82,6 +82,11 @@ export default function PlayerSetup({
       <div className="mt-2 text-sm opacity-70">Select 2–6 players</div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
+        {available.length === 0 && (
+          <div className="col-span-2 text-center py-6">
+            <div className="text-base font-semibold opacity-60">Sab ko add karo! 👇</div>
+          </div>
+        )}
         {available.map((p) => {
           const active = selected.some((s) => s.id === p.id);
           return (
@@ -96,7 +101,9 @@ export default function PlayerSetup({
                   : "bg-elevated border-white/5"}
               `}
             >
-              <div className="text-3xl">{p.emoji ?? "🙂"}</div>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-2xl ${active ? "bg-black/20" : "bg-white/10"}`}>
+                {p.emoji ?? "🙂"}
+              </div>
               <div className="mt-1 text-base font-medium">{p.name}</div>
             </button>
           );

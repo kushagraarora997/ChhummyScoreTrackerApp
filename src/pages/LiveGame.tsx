@@ -163,7 +163,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
                     {p.emoji ?? "🙂"}
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <div className="text-lg font-semibold">{p.name}</div>
                       {wins > 0 && (
                         <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-400 text-xs font-bold border border-yellow-500/20">
@@ -176,29 +176,32 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
                         </div>
                       )}
                     </div>
-                    <div className={`text-sm font-medium ${
-                      state === "critical" ? "text-danger animate-pulse"
-                      : state === "warning" ? "text-warning"
-                      : "opacity-70"
-                    }`}>
-                      Total: {total}
-                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {isCloser && (
-                    <span className="px-2 py-1 rounded-full text-xs bg-success/20 text-success">🏁 Closer</span>
-                  )}
-                  {state === "warning" && (
-                    <span className="px-2 py-1 rounded-full text-xs bg-warning/20 text-warning">70+</span>
-                  )}
-                  {state === "critical" && (
-                    <span className="px-2 py-1 rounded-full text-xs bg-danger/20 text-danger animate-pulse">85+</span>
-                  )}
-                  {state === "eliminated" && (
-                    <span className="px-2 py-1 rounded-full text-xs bg-danger text-white">💀 OUT</span>
-                  )}
+                <div className="flex flex-col items-end gap-1.5">
+                  <div className={`text-2xl font-black tabular-nums ${
+                    state === "critical" ? "text-danger animate-pulse"
+                    : state === "warning" ? "text-warning"
+                    : state === "eliminated" ? "text-danger/60"
+                    : "opacity-80"
+                  }`}>
+                    {total}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {isCloser && (
+                      <span className="px-2 py-1 rounded-full text-xs bg-success/20 text-success">🏁 Closer</span>
+                    )}
+                    {state === "warning" && (
+                      <span className="px-2 py-1 rounded-full text-xs bg-warning/20 text-warning">70+</span>
+                    )}
+                    {state === "critical" && (
+                      <span className="px-2 py-1 rounded-full text-xs bg-danger/20 text-danger animate-pulse">85+</span>
+                    )}
+                    {state === "eliminated" && (
+                      <span className="px-2 py-1 rounded-full text-xs bg-danger text-white">💀 OUT</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </motion.div>

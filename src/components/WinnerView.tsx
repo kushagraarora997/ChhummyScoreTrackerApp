@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { motion } from "framer-motion";
 import html2canvas from "html2canvas";
 import { useAppStore } from "../store/useAppStore";
 
@@ -76,8 +77,22 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
     <div className="text-center">
       {/* Visible card — Tailwind, for display only */}
       <div style={{ backgroundColor: "#050505" }} className="rounded-2xl p-6 mb-4">
-        <div className="text-5xl mb-3">{winner?.emoji ?? "👑"}</div>
-        <div className="text-3xl font-black tracking-tight">{winner?.name} SURVIVES</div>
+        <motion.div
+          className="text-5xl mb-3"
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: [0.4, 1.35, 1.0], opacity: 1 }}
+          transition={{ duration: 0.55, times: [0, 0.6, 1], ease: "easeOut" }}
+        >
+          {winner?.emoji ?? "👑"}
+        </motion.div>
+        <motion.div
+          className="text-3xl font-black tracking-tight"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+        >
+          {winner?.name} SURVIVES
+        </motion.div>
         <div className="mt-2 text-sm text-amber-400 uppercase tracking-widest font-semibold">
           Always Agitated Aroras
         </div>

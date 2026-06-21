@@ -71,7 +71,7 @@ export default function EnterScores() {
                         onClick={() => { store.setTempScore(p.id, c); setValidErr(null); }}
                         className={`
                           rounded-xl font-semibold transition active:scale-[0.97]
-                          ${c === 0 ? "col-span-3 py-3 text-xl" : "py-4 text-lg"}
+                          ${c === 0 ? "col-span-3 py-3 text-xl" : "py-5 text-lg"}
                           ${selected
                             ? "bg-success text-black"
                             : c === 0

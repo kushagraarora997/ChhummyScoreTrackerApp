@@ -161,48 +161,43 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ## UI Audit — Self-Review (2026-06-21)
 
-- [ ] **Player Setup empty state looks broken** — When no players exist yet, it's just a lone dashed "+ Add Player" box on a huge black void. Add a short invite heading like "Sab ko add karo! 👇" above the grid so the screen doesn't look empty/busted on first install.
+- [x] **[DONE] Player Setup empty state looks broken** — Fixed 2026-06-21. Added "Sab ko add karo! 👇" heading above the grid when no players exist.
 
-- [ ] **Player Setup — emoji circle invisible on selected (green) cards** — Selected cards get `bg-success` (bright green). The `bg-white/10` emoji circle backdrop blends into the green and disappears. Change circle to `bg-black/20` when card is in selected state so the circle stays visible.
+- [x] **[DONE] Player Setup — emoji circle invisible on selected (green) cards** — Fixed 2026-06-21. Circle uses `bg-black/20` when active (green bg) and `bg-white/10` when unselected.
 
-- [ ] **Who Closed — last card stranded with odd player count** — With 3 or 5 players in a `grid-cols-2` layout, the last card sits alone in the left cell of the bottom row, taking only half the width. Make it `col-span-2` (full width) when it's the last card in an odd-count list.
+- [x] **[DONE] Who Closed — last card stranded with odd player count** — Already done in WhoClosed.tsx. `isLast` guard adds `col-span-2` for the final card in an odd-count list.
 
-- [ ] **Live Game player cards — "Total: 0" reads like a form label** — The score sub-text says "Total: 0" left-aligned under the name. In a scoreboard it should feel like a number, not a label. Consider right-aligning the score as a larger number (`text-2xl font-bold`) on the right side of the card, removing the "Total:" prefix.
+- [x] **[DONE] Live Game player cards — "Total: 0" reads like a form label** — Fixed 2026-06-21. Score moved to right column as `text-2xl font-black` number (colored by state). "Total:" prefix removed. State badges (70+, 85+, etc.) shown below the score.
 
-- [ ] **Score entry chips — slightly cramped** — Chip buttons use `py-4`. Bumping to `py-5` would give more tap area and feel more generous / poker-chip-like.
+- [x] **[DONE] Score entry chips — slightly cramped** — Fixed 2026-06-21. Non-zero chips changed from `py-4` to `py-5`.
 
-- [ ] **Winner screen — needs more celebration** — "Arjun SURVIVES" is bold but the screen is static. A subtle confetti burst or a pulsing glow on the winner name would make it feel more climactic for a family moment.
+- [x] **[DONE] Winner screen — needs more celebration** — Fixed 2026-06-21. Winner emoji gets a scale-bounce motion on mount. "SURVIVES" text has fade+slide-up entry animation.
 
-- [ ] **Stats Charts — 0-win players show blank column** — "Wins per Player" renders a bar for players with 1+ wins but the 0-win player's column just shows their name with no bar. Looks like missing data. Could show a faint 0-height bar with a "0" label, or simply hide 0-win players from that chart.
+- [x] **[DONE] Stats Charts — 0-win players show blank column** — Fixed 2026-06-21. "Wins per Player" chart uses `winsChartData` (filtered to players with wins > 0). "Closes vs Eliminations" still shows all players.
 
 ---
 
 ## Haptics & Sound
 
-- [ ] **Vibration on winner declared** — Currently vibration only fires on elimination (`navigator.vibrate([200, 100, 200])`). Add a distinct victory pattern on winner: e.g. `[100, 50, 100, 50, 300]` (quick double-buzz then long). Trigger in both `confirmRound()` (survivors.length === 1 path) and `declareWinner()`.
+- [x] **[DONE] Vibration on winner declared** — Fixed 2026-06-21. `navigator.vibrate?.([100, 50, 100, 50, 300])` added in both `confirmRound()` (survivors.length === 1 and === 0 paths) and `declareWinner()`.
 
-- [ ] **Vibration on elimination — already done** — `navigator.vibrate([200, 100, 200])` fires in `confirmRound()` when `justEliminated.length > 0`. No change needed here.
+- [x] **[DONE] Vibration on elimination — already done** — `navigator.vibrate([200, 100, 200])` fires in `confirmRound()` when `justEliminated.length > 0`. No change needed.
 
-- [ ] **Sound feedback using Web Audio API** — No external audio files needed. Use `AudioContext` + `OscillatorNode` to synthesize short tones inline:
-  - **Winner**: ascending 3-note fanfare (e.g. C→E→G, each ~150ms, sine wave)
-  - **Elimination**: descending 2-note drop (e.g. A→E, 200ms each, sawtooth for harshness)
-  - **Score confirm**: single soft click/tick (very short, 30ms, low frequency)
-  - Wrap in a `try/catch` — AudioContext may be blocked if user hasn't interacted yet. Also respect `document.hidden` to avoid playing when app is in background.
-  - No sound settings toggle needed for now (family game, volume is the phone's job).
+- [x] **[DONE] Sound feedback using Web Audio API** — Fixed 2026-06-21. `src/utils/sound.ts` created with `soundWinner()` (C→E→G fanfare), `soundElimination()` (A→E sawtooth drop), `soundConfirm()` (30ms tick). Called from `confirmRound()` and `declareWinner()`. Wrapped in try/catch; respects `document.hidden`.
 
 ---
 
 ## Architecture Cleanup (2026-06-21)
 
-- [ ] **`setScore` is dead code** — `setScore(playerId, value)` in the store is identical to `setTempScore` but is never called anywhere. Delete the function and its `AppState` interface entry.
+- [x] **[DONE] `setScore` is dead code** — Removed. `setTempScore` is the canonical function now.
 
-- [ ] **`resumeLatest()` is never called** — `init()` already loads active session on startup. `resumeLatest()` is exported but never invoked. Delete it.
+- [x] **[DONE] `resumeLatest()` is never called** — Removed. `init()` handles resume on startup.
 
-- [ ] **`ui.toast` is never displayed** — `undoLastRound()` and `redoLastRound()` write to `ui.toast` but NO component reads or renders it. Either wire up a toast display or delete the field and the two write calls.
+- [x] **[DONE] `ui.toast` is never displayed** — Removed field and write calls from `undoLastRound()`/`redoLastRound()`.
 
-- [ ] **`tempScores` not cleared on Back** — Tapping "← Back" in score entry calls `endRoundStart()`, which does NOT clear `tempScores`. Old chip selections persist. If user picks a different closer second time, their old chips still show selected. Fix: clear `tempScores` in `endRoundStart()`.
+- [x] **[DONE] `tempScores` not cleared on Back** — Fixed. `endRoundStart()` now clears `tempScores: {}`.
 
-- [ ] **`getTotals()` redundant calls in EnterScores** — Called for filter, per-player display, running total preview, and confirm handler — 4+ times per render. Extract to a single `const totals = store.getTotals()` at the top.
+- [x] **[DONE] `getTotals()` redundant calls in EnterScores** — Fixed. Single `const totals = store.getTotals()` at top of component; all player rows and running total use it.
 
 ---
 

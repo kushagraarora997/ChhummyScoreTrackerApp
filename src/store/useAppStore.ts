@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { db, Player, Session, Round, Stats, Achievement } from "../db";
 import { nanoid } from "../utils/nanoid";
+import { soundWinner, soundElimination, soundConfirm } from "../utils/sound";
 
 async function writeStats(session: Session, allRounds: Round[]) {
   const existing = await db.stats.get("global");
@@ -352,6 +353,7 @@ export const useAppStore = create<AppState>()(
         );
 
       if (justEliminated.length > 0) {
+        soundElimination();
         navigator.vibrate?.([200, 100, 200]);
 
         if (survivors.length > 1) {
@@ -385,6 +387,8 @@ export const useAppStore = create<AppState>()(
         };
         await db.sessions.put(completed);
         await writeStats(completed, [...rounds, round]);
+        soundWinner();
+        navigator.vibrate?.([100, 50, 100, 50, 300]);
         set((s) => ({
           activeSession: completed,
           ui: { ...s.ui, overlay: { type: "winner", winnerId: tieWinnerId, summary: { rounds: rounds.length + 1, closes, final } } },
@@ -417,6 +421,9 @@ export const useAppStore = create<AppState>()(
         await db.sessions.put(completed);
         await writeStats(completed, [...rounds, round]);
 
+        soundWinner();
+        navigator.vibrate?.([100, 50, 100, 50, 300]);
+
         set((s) => ({
           activeSession: completed,
           ui: {
@@ -428,7 +435,12 @@ export const useAppStore = create<AppState>()(
             },
           },
         }));
+
+        return;
       }
+
+      // Normal round — no elimination, no winner
+      soundConfirm();
     },
 
     async undoLastRound() {
@@ -531,6 +543,9 @@ export const useAppStore = create<AppState>()(
 
       await db.sessions.put(completed);
       await writeStats(completed, rounds);
+
+      soundWinner();
+      navigator.vibrate?.([100, 50, 100, 50, 300]);
 
       set((s) => ({
         activeSession: completed,
