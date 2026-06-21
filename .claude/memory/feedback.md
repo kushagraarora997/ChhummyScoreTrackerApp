@@ -1,8 +1,10 @@
 ---
 name: feedback
 description: Mistakes made and patterns to never repeat
-metadata:
+metadata: 
+  node_type: memory
   type: feedback
+  originSessionId: 01c096f0-686f-473d-9d93-bc36fc517e67
 ---
 
 **Rule: TODO.md pehle, implement baad mein.**
@@ -40,3 +42,11 @@ How to apply: When fixing bugs or building features, run the Playwright test sui
 **Rule: Maintain test reports in .claude/TEST_REPORTS/.**
 Why: Kush asked for a scored test report file. One batch of testing = one report entry with a self-assessed score.
 How to apply: After every test run, write a report to `.claude/TEST_REPORTS/batch-{N}-{date}.md` and update the score in that file. Kush judges the score.
+
+**Rule: "Skip silently" means zero output — no confirmation message.**
+Why: The stop hook says "if nothing new was learned, skip silently." Outputting "Skipping — nothing new to save." counts as a turn-end, re-triggers the hook, and creates an infinite loop.
+How to apply: When there is nothing to save to memory, produce no output at all. Not even one word.
+
+**Rule: Even within an approved task, implement-first is still wrong.**
+Why: Kush said "Don't repeat your mistakes!" when I fixed the share card flexbox bug without explicit approval, even though fixing the share card was in the original session task list. The approval covers the outcome, not every intermediate implementation decision.
+How to apply: When discovering a sub-bug or root cause mid-task, describe the finding and proposed fix first. Wait for acknowledgement before touching code. "The task is approved" ≠ "every micro-decision within it is approved."

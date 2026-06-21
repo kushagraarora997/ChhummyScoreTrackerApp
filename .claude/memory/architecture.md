@@ -55,6 +55,12 @@ metadata:
 - Fix: render a SECOND share card in `WinnerView.tsx` via `hiddenCardRef` pointing to an off-screen `<div>` with `position: fixed; left: -9999px`. Uses explicit `rgba()` colors and inline styles (no Tailwind). html2canvas captures only this clean, isolated node.
 - `html2canvas` options: `{ backgroundColor: "#050505", scale: 2, useCORS: true, allowTaint: true, logging: false, width: ..., height: ... }`
 
+**CRITICAL — html2canvas does NOT support CSS flexbox:**
+- Any `display: flex` in the off-screen capture div causes html2canvas to render all children as stacked blocks — no side-by-side layout, no gap, no justify-content.
+- Symptom: player rows collapse so name and pts appear on separate lines; stats row shows Rounds and Closes vertically.
+- Fix: use `<table>` layout for any side-by-side elements in the hidden card. Nested tables work fine. `float` also works. Absolutely avoid flexbox or grid in anything html2canvas will capture.
+- The VISIBLE card (display-only, not captured) can still use Tailwind flexbox freely.
+
 **abandonSession() ordering (important — do not swap):**
 - `await db.sessions.put(...)` FIRST, then `set({ activeSession: undefined, ... })`
 - Reason: if `set()` fires before the await, Zustand's `useSyncExternalStore` triggers a synchronous re-render of LiveGame while route is still "live" (React batch hasn't processed `setRoute("home")` yet), showing the "No active session." fallback
