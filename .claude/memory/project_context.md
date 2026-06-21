@@ -21,64 +21,50 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Closer becomes dealer next round; closer's own score capped at 5 (deadwood was ≤5 to close)
 - Last survivor wins
 
-**What's Built (as of 2026-06-21):**
+**What's Built (as of 2026-06-21 — post-modularization):**
 - Player management, live game screen, full round flow (end→closer→scores→confirm)
 - Elimination modal (full-screen, dark red, vibration, giant score hero + "points — OUT" label) — NOTE: only shows when ≥2 survivors remain; with 2 players, game goes directly to winner
-- Winner screen (celebration + share card)
-- Numeric Keypad Modal — custom numpad replaces window.prompt() entirely; renders via createPortal into document.body to bypass Android Chrome stacking context issues
+- Winner screen (celebration + share card via html2canvas off-screen div fix)
+- Numeric Keypad Modal — custom numpad replaces window.prompt() entirely; renders via createPortal into document.body; inside EnterScores.tsx overlay component
 - Max 60 cap in numpad: digits exceeding 60 are rejected during typing; subtitle shows "Max 60"/"Max reached"; confirm clamps with Math.min(v,60)
 - Closer constraint: sees only 0–5 chips, no Custom button
 - Running total preview in score entry (currentTotal + pending = newTotal, colored by threshold)
 - Visual tension: warning (70+) amber card bg + text, critical (85+) red bg + pulsing text
-- Undo last round with confirmation (inline Yes/No row, disabled when no rounds to undo)
-- Redo last undo: `lastUndoneRound` in store; `redoLastRound()` / `clearRedo()` actions; amber inline row "↩ Redo available" → tap → confirm "Redo Round N? Yes/No"; cleared on any new round, abandon, or winner
-- Cancel button on Who Closed overlay (← Cancel dismisses without starting round)
-- End Game button (amber gradient) replaces End Round when only 1 survivor left; calls declareWinner()
-- Trophy badge on player card (🏆 N closes) — hidden at 0
-- Dealer pill (🎴 Dealer) directly on the dealer's player card
+- Undo last round with confirmation
+- Redo last undo (lastUndoneRound in store)
+- Cancel button on Who Closed overlay (← Cancel)
+- Back button on Enter Scores (← Back → reopens Who Closed)
+- End Game button (amber gradient) when only 1 survivor left; calls declareWinner()
+- Trophy badge on player card (🏆 N closes)
+- Dealer pill (🎴 Dealer) on dealer's player card
 - Autosave to IndexedDB, offline PWA
-- Stats system: `writeStats()` writes to stats + achievements tables on every game end
+- Stats system: writeStats() writes to stats + achievements tables on every game end
 - Hall of Fame: coloured pill rows — gold/Champion, amber/Closer, red/Patsy
-- "How to Close" accordion on Home: always visible, collapsed by default
-- Stats page with 3 tabs: Players (per-player cards + achievements), History (expandable sessions), Charts (Recharts bar charts)
-- Share Result Card: full ranked leaderboard (winner gold-highlighted, eliminated with 💀 + red, pts for all); html2canvas + Web Share API (Android) / download fallback (desktop)
-- Pause screen: bottom-sheet style with blurred live game behind
-- PlayerSetup: players sorted by `lastUsedAt` desc (most recently used first)
-- Emoji contrast fix: `w-12 h-12 rounded-full bg-white/10` circular backdrop behind all emoji instances (player cards, Who Closed buttons, Enter Scores rows) — dark emojis like 😎 now visible
-- Score entry sticky bottom: `bg-[#171717]` + `z-10` on Confirm Round bar (was `bg-inherit` → resolved to transparent through intermediate wrapper div)
-- Back button on score entry: "← Back" below Confirm Round calls `store.endRoundStart()` → reopens "Who Closed?" overlay so wrong closer can be corrected
-- Who Closed cards redesigned (2026-06-21): h-32 (was h-24), w-14 h-14 emoji circle (was w-11), card bg tinted amber/red matching player danger state (matches live game cards), score shown as colored pill, gradient top shimmer on non-eliminated cards
+- "How to Close" accordion on Home
+- Stats page: 3 tabs (Players with achievement badges, History expandable, Charts with Recharts)
+- Share Result Card: off-screen hidden div captured by html2canvas + Web Share API / download fallback
+- Pause screen: bottom-sheet with blurred live game behind, End Game → confirm flow
+- PlayerSetup: players sorted by lastUsedAt desc
+- Emoji circular backdrop (bg-white/10) behind all emoji instances for dark emoji visibility
+- Modularized overlay components (2026-06-21): WhoClosed, EnterScores, EliminationOverlay, WinnerOverlay, PauseOverlay each in own file under `src/components/overlays/`
 
 **Pending UI Issues (from self-audit 2026-06-21, all in TODO.md):**
 1. Player Setup empty state looks broken — lone dashed box in black void
 2. Who Closed — last card stranded (odd player count, grid-cols-2)
 3. Live game "Total: 0" reads like a form label — should be a bold right-aligned number
-4. Emoji circle invisible on selected (green) player cards — bg-white/10 blends into green
+4. Emoji circle invisible on selected (green) player cards in PlayerSetup
 5. Score entry chips slightly cramped (py-4 → py-5)
 6. Winner screen needs more celebration (static text, no animation)
 7. Stats chart: 0-win players show blank column, looks like missing data
 
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)
-- Deployment: pushed to main on 2026-06-21 (Vercel auto-deployed)
 
-**UI Improvements Made (2026-06-20, session 2):**
-- History expanded: each player now on own row, `+score → total` right-aligned, colored by threshold (amber 70+, orange 85+, red 100+ with 💀)
-- Charts: `<Legend />` added to "Closes vs Eliminations" chart — amber=Closes, red=Eliminations
-- Score entry: shows "Score: X" under each player name before they tap a chip — no mental recall needed mid-game
-- Who Closed buttons: show current pts below name, colored amber/red if in danger zone
-- Home empty state: "How to Close" Quick Rules card appears below Hall of Fame when no games played yet; disappears once data exists
-- Score entry overflow: already handled by FullOverlay's `max-h-[92vh] overflow-y-auto`
+**Deployment:** Vercel is linked to GitHub. `git push main` auto-deploys. Push requires explicit user go-ahead per CLAUDE.md.
 
-**Bugs Fixed (2026-06-20, session 2 — found via adversarial edge-case testing):**
-- **Both players hit 100 same round → game stuck** (`survivors.length === 0` unhandled): `confirmRound()` now picks lowest total as winner; tie broken by whoever closed that round
-- **Numpad leading zero**: typing 0 then 5 showed "05" (value correct but display wrong). Fixed: numpad opens empty (not pre-filled with prior chip value); typing a 1-9 digit when display shows "0" replaces it; typing "0" when already "0" keeps "0" (prevents "00")
+**Test coverage:** E2E screenshot tour at `C:\Users\kusha\AppData\Local\Temp\pw-test\screenshot-tour.mjs`. Generates 19 screenshots. Run with `node screenshot-tour.mjs` (dev server must be on port 5173). All passing as of 2026-06-21.
 
-**Test coverage:** 136 automated tests across batch-05 (17) + batch-06b (6) + batch-07 (20) + batch-08 (65) + batch-09 (28). All 136 pass.
-
-**batch-08 (2026-06-21)** — Full end-to-end review, 65/65. Verified: splash, home, player setup, live game, all overlays (pause, who-closed+cancel, score-entry, numpad, elimination, winner), undo confirmation, end-game button, stats page (3 tabs), hall of fame, resume session, visual tension (amber/red), eliminated card. One confirmed bug: numpad accepts scores > 60 (cap at 60 is pending TODO).
-
-**Test Status (Batch 5 — 2026-06-20):** 17/17 tests PASS. Full flow verified: game start, visual tension badges, running total preview + 💀, winner nav home, stats page with real data, achievements, history expand, charts, closer-no-custom, numpad.
+**Architecture debt remaining (see architecture.md):** getTotals() redundant calls, confirmRound() length, no lazy loading.
 
 **See TODO.md for full task list.**
 

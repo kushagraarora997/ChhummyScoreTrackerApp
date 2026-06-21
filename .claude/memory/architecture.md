@@ -16,54 +16,72 @@ metadata:
 - stats — single "global" row, `totals: { wins, closes, eliminations, averageScore, survivalRounds, streaks }`
 - achievements — per-game rows (ICE_COLD, UNTOUCHABLE, SURVIVOR, CLUTCH_MASTER, PATSY)
 
-**Key files:**
-- `src/app/App.tsx` — route manager, clean
+**Key files (as of 2026-06-21 modularization):**
+- `src/app/App.tsx` — route manager, clean; `AnimatePresence mode="wait"` wraps all routes
 - `src/store/useAppStore.ts` — all state + DB ops + writeStats()
-- `src/pages/LiveGame.tsx` — live game screen + 4 modals (whoClosed, enterScores/numpad, confirmRound, eliminated)
-- `src/components/FullOverlay.tsx` — extracted overlay shell (tone: success|danger)
-- `src/components/WinnerView.tsx` — winner screen + html2canvas share card
+- `src/pages/LiveGame.tsx` — ~200 line orchestrator; just renders player cards + Overlays component; all overlay logic is in separate files
+- `src/components/overlays/WhoClosed.tsx` — "Who Closed?" overlay, grid of player buttons
+- `src/components/overlays/EnterScores.tsx` — score entry overlay + custom numpad portal
+- `src/components/overlays/EliminationOverlay.tsx` — full-screen red elimination screen
+- `src/components/overlays/WinnerOverlay.tsx` — wraps WinnerView in FullOverlay
+- `src/components/overlays/PauseOverlay.tsx` — pause + end-game confirm sheet
+- `src/components/FullOverlay.tsx` — reusable bottom-sheet shell (tone: success|danger); motion.div with opacity/y animations
+- `src/components/WinnerView.tsx` — winner content + html2canvas share card (off-screen hidden div approach)
 - `src/pages/StatsPage.tsx` — 3-tab stats page (Players, History, Charts)
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
-**Remaining structural debt (from full architecture review 2026-06-21):**
-1. **`ui.toast` is dead** — `undoLastRound()` and `redoLastRound()` write to `ui.toast` ("Undid previous round" / "Redid round") but NO component reads or displays it. The toast silently gets set and dropped. Either wire up a toast UI or delete the field and the two `set()` calls that write it.
-2. **`setScore` is dead code** — identical body to `setTempScore`. Exposed in `AppState` interface but never called anywhere. Only `setTempScore` is used.
-3. **`resumeLatest()` is never called** — `init()` already loads active session on app start. `resumeLatest()` is a dead export on the store.
-4. **`getTotals()` called 4+ times per render in enterScores** — once for filter, once per player for display, once for running total preview, once in confirm handler. Not a performance issue at current scale but redundant.
-5. **`tempScores` not cleared on "← Back"** — `endRoundStart()` reopens whoClosed but does NOT clear tempScores. Old scores survive. Implicit behavior — could be intentional (same round, same scores) or confusing (different closer).
-6. **`confirmRound()` is 100+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie, triggers overlays all in one function. Acceptable at this scale; risky to touch without care.
-7. No lazy loading — all pages imported eagerly (acceptable for this app size).
+**Remaining structural debt (after 2026-06-21 cleanup — items 1-3 and 5 were FIXED):**
+1. **`getTotals()` called 4+ times per render in EnterScores** — once for filter, once per player for display, once for running total preview, once in confirm handler. Not a performance issue at current scale but redundant.
+2. **`confirmRound()` is 100+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie, triggers overlays all in one function. Acceptable at this scale; risky to touch without care.
+3. No lazy loading — all pages imported eagerly (acceptable for this app size).
 
 **New actions added (2026-06-21):**
 - `declareWinner(winnerId)`: manually declare winner without a round — gets rounds/totals, marks session completed, calls writeStats, sets winner overlay. Used by End Game button when survivors.length === 1.
 
 **Numpad rendering (2026-06-21):**
-- Numpad is rendered via `createPortal(numpad, document.body)` in `LiveGame.tsx` — placed OUTSIDE `AnimatePresence`, directly into document.body
+- Numpad is rendered via `createPortal(numpad, document.body)` INSIDE `EnterScores.tsx` — at the bottom of the component, after the FullOverlay JSX
 - Root cause of the fix: `FullOverlay` uses `backdrop-blur-sm` (backdrop-filter: blur), which creates a new CSS stacking context on Android Chrome. Even `z-[60]` children could not escape it. `createPortal` bypasses all parent stacking contexts entirely.
-- Numpad is a plain `<div>` wrapper (not a Framer Motion component at the root) with `style={{ zIndex: 9999 }}`. Inner sheet uses Framer Motion for the slide-up animation.
-- The `Overlays` function return is now `<>...<AnimatePresence>...</AnimatePresence>{numpad && createPortal(...)}</>`.
+- Numpad outer wrapper is a plain `<div>` with `style={{ zIndex: 9999 }}`. Inner sheet uses Framer Motion for the slide-up animation.
 - If numpad ever stops appearing on Android again, check: (1) portal target exists before render, (2) new overlays added since that also use backdrop-filter.
 
 **Critical elimination overlay rule:**
-- The `"eliminated"` overlay ONLY renders when `survivors.length > 1` (store line ~389).
+- The `"eliminated"` overlay ONLY renders when `survivors.length > 1` (store ~line 360).
 - When there are exactly 2 players and one is eliminated, the game skips the elimination overlay and goes DIRECTLY to the winner overlay.
 - Tests that check the elimination modal must use 3+ players, otherwise they will never see the `Continue` button — the `SURVIVES` winner screen shows instead.
 
-**Watch out:**
-- `LiveGame.tsx` had pre-existing U+201D (curly right double quotes) in some JSX className attributes. Fixed on lines 370 and 377 (2026-06-21). If any new class attributes look wrong in build, check for smart quotes via `cat -v`.
+**html2canvas share card fix (2026-06-21):**
+- Root cause of distortion: capturing a card inside `fixed inset-0 max-h-[92vh] overflow-y-auto` FullOverlay. Scroll context and parent positioning cause pixel distortion.
+- Fix: render a SECOND share card in `WinnerView.tsx` via `hiddenCardRef` pointing to an off-screen `<div>` with `position: fixed; left: -9999px`. Uses explicit `rgba()` colors and inline styles (no Tailwind). html2canvas captures only this clean, isolated node.
+- `html2canvas` options: `{ backgroundColor: "#050505", scale: 2, useCORS: true, allowTaint: true, logging: false, width: ..., height: ... }`
 
-**CSS gotcha — bg-inherit through wrapper divs (2026-06-21):**
+**abandonSession() ordering (important — do not swap):**
+- `await db.sessions.put(...)` FIRST, then `set({ activeSession: undefined, ... })`
+- Reason: if `set()` fires before the await, Zustand's `useSyncExternalStore` triggers a synchronous re-render of LiveGame while route is still "live" (React batch hasn't processed `setRoute("home")` yet), showing the "No active session." fallback
+- The race condition this was "fixing" doesn't exist in practice — the 1200ms gap before `newSession()` is called is far longer than the ~20ms DB write
+
+**Playwright E2E screenshot tour (2026-06-21):**
+- Test at `C:\Users\kusha\AppData\Local\Temp\pw-test\screenshot-tour.mjs` — generates 19 screenshots
+- Dev server must be on port 5173 (`npm run dev`)
+- Run: `node screenshot-tour.mjs` from the pw-test directory
+- Key quirk: `page.evaluate(() => document.body.getBoundingClientRect())` must precede "End Round" clicks in loops — without it, Playwright's click is fired before Framer Motion's `motion.div layout` animation system completes its initialization, and a transient DOM element intercepts the click
+- Test covers: splash, home, accordion, player setup (add modal), live game, who-closed, enter-scores (scroll), back+cancel, pause, abandon, second full game (3 rounds, winner), stats (3 tabs), hall of fame
+
+**CSS gotcha — bg-inherit through wrapper divs:**
 - `bg-inherit` only inherits the computed `background-color` of the IMMEDIATE parent, not the nearest ancestor with a non-transparent background. If a child div sits inside `<div className="pb-10">` (no background), `bg-inherit` on a deeper element resolves to `transparent`, not the grandparent's colour.
-- Fix: use an explicit colour (e.g. `bg-[#171717]`) on sticky/floating elements when they're wrapped in a bare div inside a coloured container. Affected: the Confirm Round sticky bar in enterScores overlay.
+- Fix: use an explicit colour (e.g. `bg-[#171717]`) on sticky/floating elements. Affected: Confirm Round sticky bar in EnterScores overlay.
 
 **Fixed bugs (do not re-introduce):**
-- `newSession()` now reloads players from DB before setting state — fixes "Player" name bug
-- All `window.prompt()` replaced with NumpadModal; all `window.alert()` replaced with inline validation toast
-- Winner overlay close now calls `onExit()` to navigate home, not just `closeOverlay()`
-- Closer's Custom button hidden (`!isCloser` guard in enterScores overlay)
+- `newSession()` reloads players from DB before setting state — fixes "Player" name bug
+- `newSession()` ALWAYS resets `ui.overlay` to none — prevents stale overlay from previous game
+- `endRoundStart()` clears `tempScores: {}` — prevents stale score chips from previous round entry persisting if closer is changed
+- Dead exports removed from store: `setScore` (dup of `setTempScore`), `resumeLatest()` (unused), `ui.toast` field
+- All `window.prompt()` replaced with NumpadModal; all `window.alert()` replaced with inline validation
+- Winner overlay close calls `onExit()` to navigate home
+- Closer's Custom button hidden (`!isCloser` guard in EnterScores overlay)
 - Pull-to-refresh blocked via `overscroll-behavior: none`
 - `confirmRound()` `survivors.length === 0` case: when ALL players hit 100 in same round, lowest total wins; tie broken by round's closer
-- Numpad opens with `numInput = ""` always (not pre-filled with prior chip value); 0→digit correctly replaces leading zero
+- Numpad opens with `numInput = ""` always (not pre-filled); 0→digit correctly replaces leading zero
 
-**How to apply:** When touching any of these files, be aware of the remaining debt. Fix while working, don't introduce more monolith patterns.
+**Watch out:**
+- `LiveGame.tsx` previously had U+201D curly right double quotes in JSX className attrs. Fixed 2026-06-21. Check for smart quotes (`cat -v`) if builds look wrong.
