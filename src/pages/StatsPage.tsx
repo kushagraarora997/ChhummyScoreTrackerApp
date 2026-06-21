@@ -5,6 +5,14 @@ import {
 } from "recharts";
 import { db, Player, Session, Round } from "../db";
 
+interface H2HRecord {
+  playerA: Player;
+  playerB: Player;
+  winsA: number;
+  winsB: number;
+  total: number;
+}
+
 type Tab = "stats" | "history" | "charts";
 
 interface PlayerStats {
@@ -51,6 +59,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [expandedRounds, setExpandedRounds] = useState<Round[]>([]);
   const [playerMap, setPlayerMap] = useState<Map<string, Player>>(new Map());
+  const [h2h, setH2h] = useState<H2HRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -116,6 +125,32 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
           };
         })
       );
+
+      // ── Head-to-Head ────────────────────────────────────────────────
+      const pairMap: Record<string, { winsA: number; winsB: number; total: number }> = {};
+      for (const s of completedSessions) {
+        if (!s.winnerId) continue;
+        const ids = [...s.playerIds].sort();
+        for (let i = 0; i < ids.length; i++) {
+          for (let j = i + 1; j < ids.length; j++) {
+            const key = `${ids[i]}__${ids[j]}`;
+            if (!pairMap[key]) pairMap[key] = { winsA: 0, winsB: 0, total: 0 };
+            pairMap[key].total++;
+            if (s.winnerId === ids[i]) pairMap[key].winsA++;
+            else if (s.winnerId === ids[j]) pairMap[key].winsB++;
+          }
+        }
+      }
+      const h2hRows: H2HRecord[] = [];
+      for (const [key, rec] of Object.entries(pairMap)) {
+        if (rec.total < 2) continue;
+        const [idA, idB] = key.split("__");
+        const pA = pMap.get(idA);
+        const pB = pMap.get(idB);
+        if (pA && pB) h2hRows.push({ playerA: pA, playerB: pB, ...rec });
+      }
+      h2hRows.sort((a, b) => b.total - a.total);
+      setH2h(h2hRows);
 
       setLoaded(true);
     }
@@ -230,6 +265,49 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                   ))}
                 </div>
               )
+            )}
+
+            {/* ── HEAD-TO-HEAD (shown in Players tab) ── */}
+            {tab === "stats" && h2h.length > 0 && (
+              <div className="mt-6">
+                <div className="text-sm font-semibold mb-3 opacity-70 uppercase tracking-wide">
+                  Head-to-Head
+                </div>
+                <div className="space-y-3">
+                  {h2h.map((r) => {
+                    const totalWins = r.winsA + r.winsB;
+                    const fracA = totalWins > 0 ? r.winsA / totalWins : 0.5;
+                    const leadA = r.winsA > r.winsB;
+                    const leadB = r.winsB > r.winsA;
+                    return (
+                      <div key={`${r.playerA.id}__${r.playerB.id}`} className="rounded-2xl bg-card border border-white/5 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className={`flex items-center gap-2 ${leadA ? "" : "opacity-60"}`}>
+                            <span className="text-2xl">{r.playerA.emoji ?? "🙂"}</span>
+                            <div>
+                              <div className="text-sm font-semibold">{r.playerA.name}</div>
+                              <div className={`text-lg font-black ${leadA ? "text-success" : ""}`}>{r.winsA}W</div>
+                            </div>
+                          </div>
+                          <div className="text-xs opacity-40 font-semibold">{r.total} games</div>
+                          <div className={`flex items-center gap-2 text-right ${leadB ? "" : "opacity-60"}`}>
+                            <div>
+                              <div className="text-sm font-semibold">{r.playerB.name}</div>
+                              <div className={`text-lg font-black ${leadB ? "text-success" : ""}`}>{r.winsB}W</div>
+                            </div>
+                            <span className="text-2xl">{r.playerB.emoji ?? "🙂"}</span>
+                          </div>
+                        </div>
+                        {/* Win bar */}
+                        <div className="h-2 rounded-full bg-elevated overflow-hidden flex">
+                          <div className="h-full bg-success/70 rounded-l-full transition-all" style={{ width: `${fracA * 100}%` }} />
+                          <div className="h-full bg-white/20 rounded-r-full flex-1" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* ── HISTORY TAB ── */}

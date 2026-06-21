@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import confetti from "canvas-confetti";
 import html2canvas from "html2canvas";
 import { useAppStore } from "../store/useAppStore";
 
-export default function WinnerView({ onClose }: { onClose: () => void }) {
+export default function WinnerView({ onClose, onRematch }: { onClose: () => void; onRematch: () => void }) {
   const s = useAppStore();
   const hiddenCardRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
@@ -15,6 +16,19 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
       : { winnerId: "", summary: { rounds: 0, closes: 0, final: 0 } };
 
   const winner = s.players.find((p) => p.id === winnerId);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 }, colors: ["#22C55E", "#F59E0B", "#EF4444", "#FFFFFF"] });
+    }, 300);
+    const t2 = setTimeout(() => {
+      confetti({ particleCount: 60, spread: 50, origin: { x: 0.1, y: 0.7 }, colors: ["#22C55E", "#F59E0B"] });
+    }, 600);
+    const t3 = setTimeout(() => {
+      confetti({ particleCount: 60, spread: 50, origin: { x: 0.9, y: 0.7 }, colors: ["#EF4444", "#FFFFFF"] });
+    }, 700);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, []);
   const totals = s.getTotals();
   const sessionPlayers = s.players.filter((p) => s.activeSession?.playerIds.includes(p.id));
   const ranked = [...sessionPlayers].sort((a, b) => (totals[a.id] ?? 0) - (totals[b.id] ?? 0));
@@ -151,6 +165,12 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
           className="w-full py-3 rounded-2xl bg-success text-black font-semibold disabled:opacity-50"
         >
           {sharing ? "Saving..." : "📤 Share Result Card"}
+        </button>
+        <button
+          onClick={onRematch}
+          className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-black font-semibold"
+        >
+          🔁 Quick Rematch
         </button>
         <button
           onClick={onClose}

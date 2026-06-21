@@ -6,6 +6,7 @@ import EnterScores from "../components/overlays/EnterScores";
 import EliminationOverlay from "../components/overlays/EliminationOverlay";
 import WinnerOverlay from "../components/overlays/WinnerOverlay";
 import PauseOverlay from "../components/overlays/PauseOverlay";
+import PlayerHistorySheet from "../components/overlays/PlayerHistorySheet";
 
 export default function LiveGame({ onExit }: { onExit: () => void }) {
   const store = useAppStore();
@@ -14,6 +15,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
   const totals = store.getTotals();
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [redoConfirm, setRedoConfirm] = useState(false);
+  const [historyPlayerId, setHistoryPlayerId] = useState<string | null>(null);
 
   const players = useMemo(() => {
     const map = new Map(store.players.map((p) => [p.id, p]));
@@ -145,7 +147,8 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
             <motion.div
               layout
               key={p.id}
-              className={`
+              onClick={() => { if (rounds.length > 0 && store.ui.overlay.type === "none") setHistoryPlayerId(p.id); }}
+              className={`cursor-pointer active:scale-[0.98] transition-transform
                 p-4 rounded-2xl border
                 ${state === "eliminated" ? "bg-[#1a0b0b] border-danger/30 opacity-60"
                   : state === "critical" ? "bg-[#1a0606] border-danger/40"
@@ -233,6 +236,16 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
       </div>
 
       <Overlays onExit={onExit} />
+
+      <AnimatePresence>
+        {historyPlayerId && (
+          <PlayerHistorySheet
+            key="playerHistory"
+            playerId={historyPlayerId}
+            onClose={() => setHistoryPlayerId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
