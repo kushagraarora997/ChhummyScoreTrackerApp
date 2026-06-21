@@ -16,18 +16,20 @@ metadata:
 - stats — single "global" row, `totals: { wins, closes, eliminations, averageScore, survivalRounds, streaks }`
 - achievements — per-game rows (ICE_COLD, UNTOUCHABLE, SURVIVOR, CLUTCH_MASTER, PATSY)
 
-**Key files (as of 2026-06-21 modularization):**
+**Key files (as of 2026-06-22):**
 - `src/app/App.tsx` — route manager, clean; `AnimatePresence mode="wait"` wraps all routes
-- `src/store/useAppStore.ts` — all state + DB ops + writeStats()
-- `src/pages/LiveGame.tsx` — ~200 line orchestrator; just renders player cards + Overlays component; all overlay logic is in separate files
+- `src/store/useAppStore.ts` — all state; zero db.* calls (uses operations layer)
+- `src/db/operations.ts` — 16 named Dexie wrapper functions (added 2026-06-22)
+- `src/pages/LiveGame.tsx` — orchestrator: player cards + Overlays component + PlayerHistorySheet
 - `src/components/overlays/WhoClosed.tsx` — "Who Closed?" overlay, grid of player buttons
 - `src/components/overlays/EnterScores.tsx` — score entry overlay + custom numpad portal
 - `src/components/overlays/EliminationOverlay.tsx` — full-screen red elimination screen
-- `src/components/overlays/WinnerOverlay.tsx` — wraps WinnerView in FullOverlay
-- `src/components/overlays/PauseOverlay.tsx` — pause + end-game confirm sheet
+- `src/components/overlays/WinnerOverlay.tsx` — wraps WinnerView in FullOverlay; passes onRematch callback
+- `src/components/overlays/PauseOverlay.tsx` — pause + end-game confirm + mid-game share (html2canvas)
+- `src/components/overlays/PlayerHistorySheet.tsx` — slide-up sheet showing player's round-by-round scores (new 2026-06-22)
 - `src/components/FullOverlay.tsx` — reusable bottom-sheet shell (tone: success|danger); motion.div with opacity/y animations
-- `src/components/WinnerView.tsx` — winner content + html2canvas share card (off-screen hidden div approach)
-- `src/pages/StatsPage.tsx` — 3-tab stats page (Players, History, Charts)
+- `src/components/WinnerView.tsx` — winner content + confetti + html2canvas share card; accepts onClose and onRematch props
+- `src/pages/StatsPage.tsx` — 3-tab stats page (Players+H2H, History, Charts)
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
@@ -142,6 +144,26 @@ metadata:
 - Pull-to-refresh blocked via `overscroll-behavior: none`
 - `confirmRound()` `survivors.length === 0` case: when ALL players hit 100 in same round, lowest total wins; tie broken by round's closer
 - Numpad opens with `numInput = ""` always (not pre-filled); 0→digit correctly replaces leading zero
+
+**PlayerHistorySheet tap guard (2026-06-22):**
+- Player card `onClick` checks `rounds.length > 0 && store.ui.overlay.type === "none"` before setting historyPlayerId
+- Sheet uses z-40 backdrop + z-50 sheet (same level as game overlays — but game overlays physically block player card taps anyway)
+- Sheet rendered in its own `AnimatePresence` below the main `Overlays` component in LiveGame
+
+**Quick Rematch flow (2026-06-22):**
+- `WinnerOverlay` captures `playerIds = store.activeSession?.playerIds ?? []` before passing `onRematch` to WinnerView
+- `onRematch` calls `store.newSession(playerIds)` — which already sets `ui.overlay: { type: "none" }` internally, so the winner overlay auto-dismisses
+- No navigation needed — the live game screen is already mounted
+
+**canvas-confetti (2026-06-22):**
+- Installed as a dep (not devDep). `import confetti from "canvas-confetti"` in WinnerView.tsx
+- useEffect fires 3 confetti bursts at 300ms/600ms/700ms; cleanup clears timeouts on unmount
+- Colors: green #22C55E, amber #F59E0B, red #EF4444, white #FFFFFF
+
+**Mid-game share pattern (2026-06-22):**
+- PauseOverlay now has html2canvas share following the exact same off-screen table-layout pattern as WinnerView
+- Disabled when `store.rounds.length === 0` (no rounds yet — nothing meaningful to share)
+- Share disabled state: `disabled:opacity-40`
 
 **Watch out:**
 - `LiveGame.tsx` previously had U+201D curly right double quotes in JSX className attrs. Fixed 2026-06-21. Check for smart quotes (`cat -v`) if builds look wrong.

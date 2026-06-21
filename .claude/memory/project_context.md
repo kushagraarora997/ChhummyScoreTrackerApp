@@ -21,7 +21,7 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Closer becomes dealer next round; closer's own score capped at 5 (deadwood was ≤5 to close)
 - Last survivor wins
 
-**What's Built (as of 2026-06-21 — post-modularization):**
+**What's Built (as of 2026-06-22 — post-feature-batch):**
 - Player management, live game screen, full round flow (end→closer→scores→confirm)
 - Elimination modal (full-screen, dark red, vibration, giant score hero + "points — OUT" label) — NOTE: only shows when ≥2 survivors remain; with 2 players, game goes directly to winner
 - Winner screen (celebration + share card via html2canvas off-screen div fix)
@@ -47,6 +47,12 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - PlayerSetup: players sorted by lastUsedAt desc
 - Emoji circular backdrop (bg-white/10) behind all emoji instances for dark emoji visibility
 - Modularized overlay components (2026-06-21): WhoClosed, EnterScores, EliminationOverlay, WinnerOverlay, PauseOverlay each in own file under `src/components/overlays/`
+- **DB operations layer** (2026-06-22): `src/db/operations.ts` — 16 named wrapper functions; `useAppStore.ts` has zero `db.*` calls
+- **Confetti on winner screen** (2026-06-22): canvas-confetti, 3-wave burst (300ms/600ms/700ms) with green/amber/red/white particles
+- **Quick Rematch** (2026-06-22): "🔁 Quick Rematch" button on winner screen — calls `store.newSession(playerIds)` with same players; winner overlay auto-closes (newSession resets overlay to none)
+- **Player History Sheet** (2026-06-22): `src/components/overlays/PlayerHistorySheet.tsx` — tap any player card mid-game (when overlay.type === "none" and rounds > 0) to see round-by-round score breakdown; spring-animated bottom sheet, backdrop closes it
+- **Mid-game share** (2026-06-22): "📊 Share Standings" button in PauseOverlay (disabled before first round); html2canvas off-screen table-layout card; same pattern as WinnerView share
+- **Head-to-Head stats** (2026-06-22): `H2HRecord` interface + h2h state in StatsPage; shown in Players tab when pairs with ≥2 games exist; win bar visualizes lead; computed from all completed sessions pairwise
 
 **All UI Audit items resolved (2026-06-21):**
 1. Player Setup empty state — "Sab ko add karo! 👇" heading added ✅
@@ -83,6 +89,7 @@ UI polish also applied (same session):
 
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)
+- Test coverage for new 2026-06-22 features (confetti, rematch, player history, mid-game share, h2h) — no Playwright tests written yet
 
 **Deployment:** Vercel is linked to GitHub. `git push main` auto-deploys. **First push was done 2026-06-21** (user approved). Subsequent pushes also need explicit go-ahead per CLAUDE.md.
 
