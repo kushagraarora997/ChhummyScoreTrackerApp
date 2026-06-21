@@ -84,7 +84,7 @@ UI polish also applied (same session):
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)
 
-**Deployment:** Vercel is linked to GitHub. `git push main` auto-deploys. Push requires explicit user go-ahead per CLAUDE.md.
+**Deployment:** Vercel is linked to GitHub. `git push main` auto-deploys. **First push was done 2026-06-21** (user approved). Subsequent pushes also need explicit go-ahead per CLAUDE.md.
 
 **Test coverage:** E2E screenshot tour at `C:\Users\kusha\AppData\Local\Temp\pw-test\screenshot-tour.mjs`. Generates 19 screenshots. Run with `node screenshot-tour.mjs` (dev server must be on port 5173). All passing as of 2026-06-21.
 

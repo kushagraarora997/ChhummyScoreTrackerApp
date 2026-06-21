@@ -36,6 +36,18 @@ Then write test script as `.mjs` and run with `node test.mjs`.
 - Framer Motion `initial={{ opacity: 0 }}` overlays: Playwright's `isVisible()` waits correctly with a timeout, so 2000ms is sufficient for animations.
 - CSS class selectors like `.text-7xl.font-black.text-danger` work in Playwright but are brittle — prefer text-based assertions for content checks.
 
+## Known Test Gaps (as of 2026-06-22 review)
+
+| Gap | Risk |
+|---|---|
+| All-players-hit-100 same round (tie-breaker path in `confirmRound()`) | Medium — untested code path |
+| Achievements written correctly after game end | Medium — zero coverage |
+| Stats accumulation across multiple sessions | Medium |
+| Score cap at 60 via numpad (type 61, verify rejected) | Low |
+| PlayerSetup: max 6 players enforcement | Low |
+| Player name maxLength=20 | Low |
+| Share card captures correct player data | Low |
+
 ## Test Report Files
 
 Stored in `.claude/TEST_REPORTS/` in the project repo.

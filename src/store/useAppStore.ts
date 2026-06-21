@@ -1,11 +1,18 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import { db, Player, Session, Round, Stats, Achievement } from "../db";
+import { Player, Session, Round, Stats, Achievement } from "../db";
 import { nanoid } from "../utils/nanoid";
 import { soundWinner, soundElimination, soundConfirm } from "../utils/sound";
+import {
+  getPlayers, getActiveSession, getRoundsBySession,
+  addSession, putSession,
+  addRound, putRound, deleteRound,
+  getGlobalStats, putStats,
+  addAchievement,
+} from "../db/operations";
 
 async function writeStats(session: Session, allRounds: Round[]) {
-  const existing = await db.stats.get("global");
+  const existing = await getGlobalStats();
   const base: Stats = existing ?? {
     id: "global",
     totals: {
@@ -65,7 +72,7 @@ async function writeStats(session: Session, allRounds: Round[]) {
     t.streaks.closeStreak[pid] = currentStreak[pid];
   }
 
-  await db.stats.put(base);
+  await putStats(base);
 
   // Achievements
   const achievements: Omit<Achievement, "id">[] = [];
@@ -115,7 +122,7 @@ async function writeStats(session: Session, allRounds: Round[]) {
   }
 
   for (const a of achievements) {
-    await db.achievements.add({ ...a, id: nanoid() });
+    await addAchievement(a);
   }
 }
 
@@ -175,20 +182,12 @@ export const useAppStore = create<AppState>()(
     tempScores: {},
 
     async init() {
-      const players = await db.players.toArray();
-
-      const active = await db.sessions
-        .where("status")
-        .equals("active")
-        .first();
-
+      const players = await getPlayers();
+      const active = await getActiveSession();
       let rounds: Round[] = [];
 
       if (active) {
-        rounds = await db.rounds
-          .where("sessionId")
-          .equals(active.id)
-          .sortBy("number");
+        rounds = await getRoundsBySession(active.id);
       }
 
       set({
@@ -207,9 +206,9 @@ export const useAppStore = create<AppState>()(
         status: "active",
       };
 
-      await db.sessions.add(session);
+      await addSession(session);
 
-      const players = await db.players.toArray();
+      const players = await getPlayers();
 
       set({
         players,
@@ -317,7 +316,7 @@ export const useAppStore = create<AppState>()(
         createdAt: Date.now(),
       };
 
-      await db.rounds.add(round);
+      await addRound(round);
 
       const nextDealerIndex =
         activeSession.playerIds.indexOf(closerId);
@@ -328,7 +327,7 @@ export const useAppStore = create<AppState>()(
         lastRoundId: round.id,
       };
 
-      await db.sessions.put(updatedSession);
+      await putSession(updatedSession);
 
       const survivors =
         activeSession.playerIds.filter(
@@ -355,7 +354,7 @@ export const useAppStore = create<AppState>()(
         // Elimination with game still continuing — play elimination sound/haptic
         soundElimination();
         navigator.vibrate?.([200, 100, 200]);
-        const pmap = await db.players.toArray();
+        const pmap = await getPlayers();
         const first = justEliminated[0];
         const name =
           pmap.find((p) => p.id === first)?.name || "Player";
@@ -382,7 +381,7 @@ export const useAppStore = create<AppState>()(
         const completed: Session = {
           ...updatedSession, status: "completed", endedAt: Date.now(), winnerId: tieWinnerId,
         };
-        await db.sessions.put(completed);
+        await putSession(completed);
         await writeStats(completed, [...rounds, round]);
         soundWinner();
         navigator.vibrate?.([100, 50, 100, 50, 300]);
@@ -415,7 +414,7 @@ export const useAppStore = create<AppState>()(
           winnerId,
         };
 
-        await db.sessions.put(completed);
+        await putSession(completed);
         await writeStats(completed, [...rounds, round]);
 
         soundWinner();
@@ -457,7 +456,7 @@ export const useAppStore = create<AppState>()(
 
       const last = rounds[rounds.length - 1];
 
-      await db.rounds.delete(last.id);
+      await deleteRound(last.id);
 
       const remain = rounds.slice(0, -1);
 
@@ -474,7 +473,7 @@ export const useAppStore = create<AppState>()(
           remain[remain.length - 1]?.id,
       };
 
-      await db.sessions.put(updated);
+      await putSession(updated);
 
       set({
         rounds: remain,
@@ -488,7 +487,7 @@ export const useAppStore = create<AppState>()(
       const { lastUndoneRound, rounds, activeSession } = get();
       if (!activeSession || !lastUndoneRound) return;
 
-      await db.rounds.put(lastUndoneRound);
+      await putRound(lastUndoneRound);
 
       const restored = [...rounds, lastUndoneRound].sort((a, b) => a.number - b.number);
 
@@ -500,7 +499,7 @@ export const useAppStore = create<AppState>()(
         lastRoundId: lastUndoneRound.id,
       };
 
-      await db.sessions.put(updated);
+      await putSession(updated);
 
       set({
         rounds: restored,
@@ -547,7 +546,7 @@ export const useAppStore = create<AppState>()(
         winnerId,
       };
 
-      await db.sessions.put(completed);
+      await putSession(completed);
       await writeStats(completed, rounds);
 
       soundWinner();
@@ -570,7 +569,7 @@ export const useAppStore = create<AppState>()(
     async abandonSession() {
       const { activeSession } = get();
       if (!activeSession) return;
-      await db.sessions.put({
+      await putSession({
         ...activeSession,
         status: "abandoned",
         endedAt: Date.now(),

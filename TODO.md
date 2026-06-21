@@ -232,6 +232,16 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
+## New Features (2026-06-22)
+
+- [ ] **Confetti on Winner Screen** — canvas-confetti burst when winner overlay mounts.
+- [ ] **Quick Rematch** — "Rematch →" button on winner screen restarts session with same players.
+- [ ] **Score History Per Player** — Tap any player card mid-game to see their round-by-round score breakdown in a bottom sheet.
+- [ ] **Mid-Game Leaderboard Share** — "Share Standings" button in Pause overlay; captures current leaderboard as PNG via html2canvas.
+- [ ] **Head-to-Head Stats** — New section in Stats page: pairwise win records for all players who've played together ≥2 times.
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).

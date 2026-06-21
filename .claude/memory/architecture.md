@@ -31,9 +31,23 @@ metadata:
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
-**Remaining structural debt (as of 2026-06-21):**
-1. **`confirmRound()` is 100+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie, triggers overlays all in one function. Acceptable at this scale; risky to touch without care.
-2. No lazy loading — all pages imported eagerly (acceptable for this app size).
+**DB operations layer (added 2026-06-21):**
+- `src/db/operations.ts` — 16 named functions wrapping all Dexie calls: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement` (adds nanoid internally)
+- `useAppStore.ts` now imports from `../db/operations` — zero `db.*` calls remain in the store
+- `Achievement` type is still imported from `../db` in the store (used for `Omit<Achievement, "id">[]` local array in `writeStats`)
+- **Pages NOT migrated yet** — `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` still call `db.*` directly. Follow-up work if full consistency is wanted.
+
+**Remaining structural debt (as of 2026-06-22 review):**
+1. **`confirmRound()` is 170+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie-breaker, triggers overlays, fires haptics+sounds. Six responsibilities in one function. Risky to touch without care.
+2. **Whole-store subscription pattern** — `const store = useAppStore()` in LiveGame, EnterScores, WhoClosed etc. subscribes to entire store; any state change re-renders all. Should use selectors (`useAppStore(s => s.players)`). Not visible at this scale but is correctness debt.
+3. **`writeStats` still in `useAppStore.ts`** — module-level function, not part of the store. Natural home is `src/db/operations.ts` or `src/utils/stats.ts`.
+4. No lazy loading — all pages imported eagerly (acceptable for this app size).
+5. Pages still use `db.*` directly (see DB operations layer note above).
+
+**Minor code observations (2026-06-22):**
+- `App.tsx:35` background gradient uses `from-[#050816]` (blue-tinted), not design system's `#050505`. Barely visible.
+- `getTotals()` called on every render in LiveGame — not memoized. Fine at this scale.
+- `EnterScores` running total shows 💀 when `currentTotal + pending >= 100` mid-entry — player isn't actually eliminated yet. Minor UX ambiguity, not a bug.
 
 **Sound utility (2026-06-21):**
 - `src/utils/sound.ts` — Web Audio API tones. `soundWinner()`, `soundElimination()`, `soundConfirm()`.
