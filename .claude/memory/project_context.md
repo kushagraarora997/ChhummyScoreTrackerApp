@@ -62,6 +62,25 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Called from confirmRound() and declareWinner() in useAppStore.ts
 - Vibration: `[100, 50, 100, 50, 300]` on winner, `[200, 100, 200]` on elimination
 
+**Extended haptics + UI polish pass (2026-06-21, batch-10):**
+All 8 haptic patterns implemented:
+- Chip tap: `navigator.vibrate?.(8)` on each chip in EnterScores
+- Who Closed player tap: `navigator.vibrate?.(20)` in WhoClosed
+- Confirm Round: `navigator.vibrate?.(30)` in EnterScores handleConfirm
+- Warning threshold (70+): `navigator.vibrate?.([30,20,30])` in confirmRound() normal-round path
+- Critical threshold (85+): `navigator.vibrate?.([50,30,50,30,50])` — takes priority over warning
+- Start Session: `navigator.vibrate?.([40,20,80])` in PlayerSetup start()
+- Custom numpad confirm: `navigator.vibrate?.(20)` in numpad ✓ handler
+- Undo confirmed: `navigator.vibrate?.(15)` on "Yes" tap in LiveGame
+
+UI polish also applied (same session):
+- LiveGame: player cards vertically centered with `flex-1 flex flex-col justify-center`; score font bumped to `text-3xl`
+- EnterScores: label changed "Score: N" → "Total: N pts"; chip 25 added (3×3 symmetric grid); numpad shows "[Name] ka score" header
+- WhoClosed: "Round N" subtitle below "Kaun Jeeta Be?" title
+- StatsPage: Y-axis domain `[0, max+1]` on Wins chart; avg score renders without trailing `.0`
+- PlayerSetup: Add Player button `col-span-2` when no players exist; start session haptic
+- Home: tagline bumped to `text-sm opacity-60`
+
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)
 

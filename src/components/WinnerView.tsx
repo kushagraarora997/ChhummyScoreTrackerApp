@@ -91,7 +91,7 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4 }}
         >
-          {winner?.name} SURVIVES
+          {winner?.name} — Chhummy Champion
         </motion.div>
         <div className="mt-2 text-sm text-amber-400 uppercase tracking-widest font-semibold">
           Always Agitated Aroras
@@ -179,8 +179,8 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
       >
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>{winner?.emoji ?? "👑"}</div>
-          <div style={{ fontSize: "30px", fontWeight: 900, letterSpacing: "-0.5px" }}>
-            {winner?.name} SURVIVES
+          <div style={{ fontSize: "26px", fontWeight: 900, letterSpacing: "-0.5px" }}>
+            {winner?.name} — Chhummy Champion
           </div>
           <div style={{ fontSize: "11px", color: "#F59E0B", textTransform: "uppercase", letterSpacing: "3px", fontWeight: 700, marginTop: "6px" }}>
             Always Agitated Aroras
