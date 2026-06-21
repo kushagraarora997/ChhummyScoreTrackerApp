@@ -47,6 +47,16 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Emoji contrast fix: `w-12 h-12 rounded-full bg-white/10` circular backdrop behind all emoji instances (player cards, Who Closed buttons, Enter Scores rows) — dark emojis like 😎 now visible
 - Score entry sticky bottom: `bg-[#171717]` + `z-10` on Confirm Round bar (was `bg-inherit` → resolved to transparent through intermediate wrapper div)
 - Back button on score entry: "← Back" below Confirm Round calls `store.endRoundStart()` → reopens "Who Closed?" overlay so wrong closer can be corrected
+- Who Closed cards redesigned (2026-06-21): h-32 (was h-24), w-14 h-14 emoji circle (was w-11), card bg tinted amber/red matching player danger state (matches live game cards), score shown as colored pill, gradient top shimmer on non-eliminated cards
+
+**Pending UI Issues (from self-audit 2026-06-21, all in TODO.md):**
+1. Player Setup empty state looks broken — lone dashed box in black void
+2. Who Closed — last card stranded (odd player count, grid-cols-2)
+3. Live game "Total: 0" reads like a form label — should be a bold right-aligned number
+4. Emoji circle invisible on selected (green) player cards — bg-white/10 blends into green
+5. Score entry chips slightly cramped (py-4 → py-5)
+6. Winner screen needs more celebration (static text, no animation)
+7. Stats chart: 0-win players show blank column, looks like missing data
 
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)

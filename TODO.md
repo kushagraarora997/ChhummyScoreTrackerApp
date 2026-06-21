@@ -155,6 +155,69 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
+- [x] **[DONE] Who Closed cards redesigned** — Fixed 2026-06-21. Cards now `h-32` (was h-24), emoji circle `w-14 h-14 text-3xl` (was w-11 text-2xl), card bg tinted amber/red matching player danger state, score shown as colored pill (e.g. "40 pts" in warning/danger color), eliminated state merged into pill ("💀 OUT"), subtle gradient shimmer line at top of each active card.
+
+---
+
+## UI Audit — Self-Review (2026-06-21)
+
+- [ ] **Player Setup empty state looks broken** — When no players exist yet, it's just a lone dashed "+ Add Player" box on a huge black void. Add a short invite heading like "Sab ko add karo! 👇" above the grid so the screen doesn't look empty/busted on first install.
+
+- [ ] **Player Setup — emoji circle invisible on selected (green) cards** — Selected cards get `bg-success` (bright green). The `bg-white/10` emoji circle backdrop blends into the green and disappears. Change circle to `bg-black/20` when card is in selected state so the circle stays visible.
+
+- [ ] **Who Closed — last card stranded with odd player count** — With 3 or 5 players in a `grid-cols-2` layout, the last card sits alone in the left cell of the bottom row, taking only half the width. Make it `col-span-2` (full width) when it's the last card in an odd-count list.
+
+- [ ] **Live Game player cards — "Total: 0" reads like a form label** — The score sub-text says "Total: 0" left-aligned under the name. In a scoreboard it should feel like a number, not a label. Consider right-aligning the score as a larger number (`text-2xl font-bold`) on the right side of the card, removing the "Total:" prefix.
+
+- [ ] **Score entry chips — slightly cramped** — Chip buttons use `py-4`. Bumping to `py-5` would give more tap area and feel more generous / poker-chip-like.
+
+- [ ] **Winner screen — needs more celebration** — "Arjun SURVIVES" is bold but the screen is static. A subtle confetti burst or a pulsing glow on the winner name would make it feel more climactic for a family moment.
+
+- [ ] **Stats Charts — 0-win players show blank column** — "Wins per Player" renders a bar for players with 1+ wins but the 0-win player's column just shows their name with no bar. Looks like missing data. Could show a faint 0-height bar with a "0" label, or simply hide 0-win players from that chart.
+
+---
+
+## Haptics & Sound
+
+- [ ] **Vibration on winner declared** — Currently vibration only fires on elimination (`navigator.vibrate([200, 100, 200])`). Add a distinct victory pattern on winner: e.g. `[100, 50, 100, 50, 300]` (quick double-buzz then long). Trigger in both `confirmRound()` (survivors.length === 1 path) and `declareWinner()`.
+
+- [ ] **Vibration on elimination — already done** — `navigator.vibrate([200, 100, 200])` fires in `confirmRound()` when `justEliminated.length > 0`. No change needed here.
+
+- [ ] **Sound feedback using Web Audio API** — No external audio files needed. Use `AudioContext` + `OscillatorNode` to synthesize short tones inline:
+  - **Winner**: ascending 3-note fanfare (e.g. C→E→G, each ~150ms, sine wave)
+  - **Elimination**: descending 2-note drop (e.g. A→E, 200ms each, sawtooth for harshness)
+  - **Score confirm**: single soft click/tick (very short, 30ms, low frequency)
+  - Wrap in a `try/catch` — AudioContext may be blocked if user hasn't interacted yet. Also respect `document.hidden` to avoid playing when app is in background.
+  - No sound settings toggle needed for now (family game, volume is the phone's job).
+
+---
+
+## Architecture Cleanup (2026-06-21)
+
+- [ ] **`setScore` is dead code** — `setScore(playerId, value)` in the store is identical to `setTempScore` but is never called anywhere. Delete the function and its `AppState` interface entry.
+
+- [ ] **`resumeLatest()` is never called** — `init()` already loads active session on startup. `resumeLatest()` is exported but never invoked. Delete it.
+
+- [ ] **`ui.toast` is never displayed** — `undoLastRound()` and `redoLastRound()` write to `ui.toast` but NO component reads or renders it. Either wire up a toast display or delete the field and the two write calls.
+
+- [ ] **`tempScores` not cleared on Back** — Tapping "← Back" in score entry calls `endRoundStart()`, which does NOT clear `tempScores`. Old chip selections persist. If user picks a different closer second time, their old chips still show selected. Fix: clear `tempScores` in `endRoundStart()`.
+
+- [ ] **`getTotals()` redundant calls in EnterScores** — Called for filter, per-player display, running total preview, and confirm handler — 4+ times per render. Extract to a single `const totals = store.getTotals()` at the top.
+
+---
+
+## Share Card Fix (2026-06-21)
+
+- [x] **[DONE] Share card PNG distortion** — Fixed 2026-06-21. html2canvas was capturing the card inside `fixed inset-0 max-h-[92vh] overflow-y-auto` overlay — scroll context and parent positioning caused distortion. Fix: render an off-screen copy of share card (`position: fixed; left: -9999px`) with explicit inline styles (no Tailwind) and capture that div instead.
+
+---
+
+## Code Organization (2026-06-21)
+
+- [x] **[DONE] Modularize LiveGame.tsx overlays** — Fixed 2026-06-21. Extracted all 5 overlays to `src/components/overlays/`: WhoClosed, EnterScores (with numpad), EliminationOverlay, WinnerOverlay, PauseOverlay. LiveGame.tsx reduced to coordinator only.
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).

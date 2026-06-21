@@ -142,18 +142,12 @@ interface AppState {
   lastUndoneRound: Round | null;
   ui: {
     overlay: UIOverlay;
-    toast?: {
-      message: string;
-      tone?: "success" | "warning" | "danger";
-    };
   };
 
   init: () => Promise<void>;
   newSession: (playerIds: string[]) => Promise<void>;
-  resumeLatest: () => Promise<void>;
   endRoundStart: () => void;
   chooseCloser: (playerId: string) => void;
-  setScore: (playerId: string, value: number) => void;
   confirmRound: () => Promise<void>;
   undoLastRound: () => Promise<void>;
   redoLastRound: () => Promise<void>;
@@ -220,31 +214,16 @@ export const useAppStore = create<AppState>()(
         players,
         activeSession: session,
         rounds: [],
+        lastUndoneRound: null,
+        ui: { overlay: { type: "none" } },
+        tempScores: {},
       });
-    },
-
-    async resumeLatest() {
-      const active = await db.sessions
-        .where("status")
-        .equals("active")
-        .first();
-
-      if (active) {
-        const rounds = await db.rounds
-          .where("sessionId")
-          .equals(active.id)
-          .sortBy("number");
-
-        set({
-          activeSession: active,
-          rounds,
-        });
-      }
     },
 
     endRoundStart() {
       set((s) => ({
         lastUndoneRound: null,
+        tempScores: {},
         ui: {
           ...s.ui,
           overlay: { type: "whoClosed" },
@@ -262,17 +241,6 @@ export const useAppStore = create<AppState>()(
           },
         },
       }));
-    },
-
-    setScore(playerId, value) {
-      const { tempScores } = get();
-
-      set({
-        tempScores: {
-          ...tempScores,
-          [playerId]: value,
-        },
-      });
     },
 
     setTempScore(pid, v) {
@@ -494,12 +462,7 @@ export const useAppStore = create<AppState>()(
         rounds: remain,
         activeSession: updated,
         lastUndoneRound: last,
-        ui: {
-          overlay: { type: "none" },
-          toast: {
-            message: "Undid previous round",
-          },
-        },
+        ui: { overlay: { type: "none" } },
       });
     },
 
@@ -525,10 +488,7 @@ export const useAppStore = create<AppState>()(
         rounds: restored,
         activeSession: updated,
         lastUndoneRound: null,
-        ui: {
-          overlay: { type: "none" },
-          toast: { message: "Redid round" },
-        },
+        ui: { overlay: { type: "none" } },
       });
     },
 

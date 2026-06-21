@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/app/app.tsx","./src/components/fulloverlay.tsx","./src/components/winnerview.tsx","./src/db/index.ts","./src/pages/home.tsx","./src/pages/livegame.tsx","./src/pages/playersetup.tsx","./src/pages/splash.tsx","./src/pages/statspage.tsx","./src/store/useappstore.ts","./src/utils/nanoid.ts"],"version":"5.9.3"}

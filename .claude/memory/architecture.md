@@ -26,10 +26,14 @@ metadata:
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
-**Remaining structural debt (minor):**
-1. `getTotals()` is a plain function called on every render — could be `useMemo` but not causing performance issues yet
-2. `setScore` and `setTempScore` are duplicates — fine for now
-3. No lazy loading — all pages imported eagerly
+**Remaining structural debt (from full architecture review 2026-06-21):**
+1. **`ui.toast` is dead** — `undoLastRound()` and `redoLastRound()` write to `ui.toast` ("Undid previous round" / "Redid round") but NO component reads or displays it. The toast silently gets set and dropped. Either wire up a toast UI or delete the field and the two `set()` calls that write it.
+2. **`setScore` is dead code** — identical body to `setTempScore`. Exposed in `AppState` interface but never called anywhere. Only `setTempScore` is used.
+3. **`resumeLatest()` is never called** — `init()` already loads active session on app start. `resumeLatest()` is a dead export on the store.
+4. **`getTotals()` called 4+ times per render in enterScores** — once for filter, once per player for display, once for running total preview, once in confirm handler. Not a performance issue at current scale but redundant.
+5. **`tempScores` not cleared on "← Back"** — `endRoundStart()` reopens whoClosed but does NOT clear tempScores. Old scores survive. Implicit behavior — could be intentional (same round, same scores) or confusing (different closer).
+6. **`confirmRound()` is 100+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie, triggers overlays all in one function. Acceptable at this scale; risky to touch without care.
+7. No lazy loading — all pages imported eagerly (acceptable for this app size).
 
 **New actions added (2026-06-21):**
 - `declareWinner(winnerId)`: manually declare winner without a round — gets rounds/totals, marks session completed, calls writeStats, sets winner overlay. Used by End Game button when survivors.length === 1.
