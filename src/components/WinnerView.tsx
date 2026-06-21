@@ -145,7 +145,7 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
-      {/* Off-screen card for html2canvas — explicit inline styles, no Tailwind opacity modifiers */}
+      {/* Off-screen card for html2canvas — NO flexbox (html2canvas doesn't support it); use tables + floats */}
       <div
         ref={hiddenCardRef}
         style={{
@@ -155,70 +155,82 @@ export default function WinnerView({ onClose }: { onClose: () => void }) {
           width: "320px",
           backgroundColor: "#050505",
           padding: "24px",
-          borderRadius: "16px",
+          borderRadius: "20px",
           fontFamily: font,
           color: "#F5F5F5",
           fontSize: "14px",
           lineHeight: "1.4",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: "16px" }}>
+        <div style={{ textAlign: "center", marginBottom: "20px" }}>
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>{winner?.emoji ?? "👑"}</div>
-          <div style={{ fontSize: "22px", fontWeight: 900, letterSpacing: "-0.5px" }}>
+          <div style={{ fontSize: "30px", fontWeight: 900, letterSpacing: "-0.5px" }}>
             {winner?.name} SURVIVES
           </div>
-          <div style={{ fontSize: "10px", color: "#F59E0B", textTransform: "uppercase", letterSpacing: "2px", fontWeight: 700, marginTop: "4px" }}>
+          <div style={{ fontSize: "11px", color: "#F59E0B", textTransform: "uppercase", letterSpacing: "3px", fontWeight: 700, marginTop: "6px" }}>
             Always Agitated Aroras
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
-          {ranked.map((p, i) => {
-            const total = totals[p.id] ?? 0;
-            const isWinner = p.id === winnerId;
-            const isElim = total >= 100;
-            return (
-              <div
-                key={p.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 12px",
-                  borderRadius: "10px",
-                  backgroundColor: isWinner ? "rgba(234,179,8,0.15)" : isElim ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${isWinner ? "rgba(234,179,8,0.30)" : isElim ? "rgba(239,68,68,0.20)" : "rgba(255,255,255,0.08)"}`,
-                  opacity: isElim ? 0.7 : 1,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "10px", opacity: 0.5, width: "16px" }}>{i + 1}</span>
-                  <span style={{ fontSize: "18px" }}>{p.emoji ?? "🙂"}</span>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: isWinner ? "#FDE68A" : "#F5F5F5" }}>
-                    {p.name}
-                  </span>
-                  {isElim && <span style={{ fontSize: "12px", color: "#F87171" }}>💀</span>}
-                </div>
-                <span style={{ fontSize: "13px", fontWeight: 700, color: isWinner ? "#FDE68A" : isElim ? "#F87171" : "rgba(255,255,255,0.8)", fontVariantNumeric: "tabular-nums" as const }}>
-                  {total} pts
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        {/* Player rows — table layout so html2canvas handles left/right columns correctly */}
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 6px", marginBottom: "10px" }}>
+          <tbody>
+            {ranked.map((p, i) => {
+              const total = totals[p.id] ?? 0;
+              const isWinner = p.id === winnerId;
+              const isElim = total >= 100;
+              const nameColor = isWinner ? "#FDE68A" : "#F5F5F5";
+              const ptsColor = isWinner ? "#FDE68A" : isElim ? "#F87171" : "rgba(255,255,255,0.8)";
+              return (
+                <tr key={p.id}>
+                  <td
+                    colSpan={2}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: "12px",
+                      backgroundColor: isWinner ? "rgba(234,179,8,0.15)" : isElim ? "rgba(239,68,68,0.10)" : "rgba(255,255,255,0.05)",
+                      border: `1px solid ${isWinner ? "rgba(234,179,8,0.30)" : isElim ? "rgba(239,68,68,0.20)" : "rgba(255,255,255,0.08)"}`,
+                      opacity: isElim ? 0.7 : 1,
+                    }}
+                  >
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <tbody>
+                        <tr>
+                          <td style={{ width: "20px", fontSize: "11px", color: "rgba(255,255,255,0.4)", verticalAlign: "middle" }}>{i + 1}</td>
+                          <td style={{ width: "26px", fontSize: "20px", verticalAlign: "middle" }}>{p.emoji ?? "🙂"}</td>
+                          <td style={{ fontSize: "14px", fontWeight: 600, color: nameColor, verticalAlign: "middle" }}>
+                            {p.name}{isElim ? " 💀" : ""}
+                          </td>
+                          <td style={{ fontSize: "14px", fontWeight: 700, color: ptsColor, textAlign: "right", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                            {total} pts
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
 
-        <div style={{ display: "flex", justifyContent: "center", gap: "32px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", marginBottom: "12px" }}>
-          <div>
-            <div style={{ fontSize: "20px", fontWeight: 700 }}>{summary.rounds}</div>
-            <div style={{ fontSize: "10px", opacity: 0.5, textTransform: "uppercase", letterSpacing: "1px" }}>Rounds</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "20px", fontWeight: 700 }}>{summary.closes}</div>
-            <div style={{ fontSize: "10px", opacity: 0.5, textTransform: "uppercase", letterSpacing: "1px" }}>Closes</div>
-          </div>
-        </div>
+        {/* Stats row — table for side-by-side layout */}
+        <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", marginTop: "4px" }}>
+          <tbody>
+            <tr>
+              <td style={{ textAlign: "center", paddingTop: "12px" }}>
+                <div style={{ fontSize: "22px", fontWeight: 700 }}>{summary.rounds}</div>
+                <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "1px" }}>Rounds</div>
+              </td>
+              <td style={{ textAlign: "center", paddingTop: "12px" }}>
+                <div style={{ fontSize: "22px", fontWeight: 700 }}>{summary.closes}</div>
+                <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: "1px" }}>Closes</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-        <div style={{ textAlign: "center", fontSize: "12px", opacity: 0.6, fontStyle: "italic" }}>
+        <div style={{ textAlign: "center", fontSize: "13px", color: "rgba(255,255,255,0.55)", fontStyle: "italic", marginTop: "14px" }}>
           "Clutch maar diya" 🃏
         </div>
       </div>
