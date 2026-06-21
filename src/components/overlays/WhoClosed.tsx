@@ -6,9 +6,11 @@ export default function WhoClosed() {
   const session = store.activeSession!;
   const players = store.players.filter((p) => session.playerIds.includes(p.id));
   const totals = store.getTotals();
+  const roundNumber = store.rounds.length + 1;
 
   return (
     <FullOverlay title="Kaun Jeeta Be? 👑">
+      <div className="text-center text-xs opacity-40 -mt-1 mb-3">Round {roundNumber}</div>
       <div className="grid grid-cols-2 gap-3">
         {players.map((p, i) => {
           const total = totals[p.id] || 0;
@@ -19,7 +21,7 @@ export default function WhoClosed() {
             <button
               key={p.id}
               disabled={eliminated}
-              onClick={() => { if (!eliminated) store.chooseCloser(p.id); }}
+              onClick={() => { if (!eliminated) { navigator.vibrate?.(20); store.chooseCloser(p.id); } }}
               className={`
                 h-32 rounded-2xl transition relative overflow-hidden
                 flex flex-col items-center justify-center gap-1.5

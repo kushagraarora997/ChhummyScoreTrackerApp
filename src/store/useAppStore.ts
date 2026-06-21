@@ -223,7 +223,6 @@ export const useAppStore = create<AppState>()(
 
     endRoundStart() {
       set((s) => ({
-        lastUndoneRound: null,
         tempScores: {},
         ui: {
           ...s.ui,
@@ -352,23 +351,21 @@ export const useAppStore = create<AppState>()(
             totals[pid] >= 100
         );
 
-      if (justEliminated.length > 0) {
+      if (justEliminated.length > 0 && survivors.length > 1) {
+        // Elimination with game still continuing — play elimination sound/haptic
         soundElimination();
         navigator.vibrate?.([200, 100, 200]);
-
-        if (survivors.length > 1) {
-          const pmap = await db.players.toArray();
-          const first = justEliminated[0];
-          const name =
-            pmap.find((p) => p.id === first)?.name || "Player";
-          set((s) => ({
-            ui: {
-              ...s.ui,
-              overlay: { type: "eliminated", name, total: totals[first] },
-            },
-          }));
-          return;
-        }
+        const pmap = await db.players.toArray();
+        const first = justEliminated[0];
+        const name =
+          pmap.find((p) => p.id === first)?.name || "Player";
+        set((s) => ({
+          ui: {
+            ...s.ui,
+            overlay: { type: "eliminated", name, total: totals[first] },
+          },
+        }));
+        return;
       }
 
       // Everyone crossed 100 in the same round — lowest total wins; tie broken by closer
@@ -441,6 +438,15 @@ export const useAppStore = create<AppState>()(
 
       // Normal round — no elimination, no winner
       soundConfirm();
+      // Threshold haptics: critical takes priority over warning
+      const crossedCritical = activeSession.playerIds.some(
+        (pid) => prevTotals[pid] < 85 && totals[pid] >= 85 && totals[pid] < 100
+      );
+      const crossedWarning = !crossedCritical && activeSession.playerIds.some(
+        (pid) => prevTotals[pid] < 70 && totals[pid] >= 70 && totals[pid] < 85
+      );
+      if (crossedCritical) navigator.vibrate?.([50, 30, 50, 30, 50]);
+      else if (crossedWarning) navigator.vibrate?.([30, 20, 30]);
     },
 
     async undoLastRound() {

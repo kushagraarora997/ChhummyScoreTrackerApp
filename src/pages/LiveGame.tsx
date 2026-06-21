@@ -59,7 +59,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
     store.ui.overlay.type === "enterScores" ? store.ui.overlay.closerId : undefined;
 
   return (
-    <div className="min-h-screen bg-background text-text p-4 pb-28">
+    <div className="min-h-screen bg-background text-text p-4 pb-28 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -84,7 +84,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
           <span className="text-sm opacity-80">Undo Round {rounds.length}?</span>
           <div className="flex gap-2">
             <button
-              onClick={() => { store.undoLastRound(); setUndoConfirm(false); setRedoConfirm(false); }}
+              onClick={() => { navigator.vibrate?.(15); store.undoLastRound(); setUndoConfirm(false); setRedoConfirm(false); }}
               className="px-3 py-1 rounded-lg bg-danger text-white text-sm font-semibold"
             >
               Yes
@@ -133,8 +133,8 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         </div>
       )}
 
-      {/* Player Cards */}
-      <div className="mt-4 grid gap-3">
+      {/* Player Cards — flex-1 so they fill available space and center vertically */}
+      <div className="flex-1 flex flex-col justify-center gap-3 mt-4">
         {sorted.map((p) => {
           const total = totals[p.id] || 0;
           const state = cardState(total);
@@ -180,7 +180,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5">
-                  <div className={`text-2xl font-black tabular-nums ${
+                  <div className={`text-3xl font-black tabular-nums ${
                     state === "critical" ? "text-danger animate-pulse"
                     : state === "warning" ? "text-warning"
                     : state === "eliminated" ? "text-danger/60"

@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import FullOverlay from "../FullOverlay";
 import { useAppStore } from "../../store/useAppStore";
 
-const CHIPS = [0, 1, 2, 3, 4, 5, 10, 15, 20];
+const CHIPS = [0, 1, 2, 3, 4, 5, 10, 15, 20, 25];
 const CLOSER_CHIPS = [0, 1, 2, 3, 4, 5];
 
 export default function EnterScores() {
@@ -30,6 +30,7 @@ export default function EnterScores() {
       return;
     }
     setValidErr(null);
+    navigator.vibrate?.(30);
     store.confirmRound();
   }
 
@@ -52,7 +53,7 @@ export default function EnterScores() {
                     </div>
                     <div>
                       <div className="font-semibold">{p.name}</div>
-                      <div className="text-xs opacity-50">Score: {currentTotal}</div>
+                      <div className="text-xs opacity-50">Total: {currentTotal} pts</div>
                     </div>
                   </div>
                   {isCloser && (
@@ -68,7 +69,7 @@ export default function EnterScores() {
                     return (
                       <button
                         key={c}
-                        onClick={() => { store.setTempScore(p.id, c); setValidErr(null); }}
+                        onClick={() => { navigator.vibrate?.(8); store.setTempScore(p.id, c); setValidErr(null); }}
                         className={`
                           rounded-xl font-semibold transition active:scale-[0.97]
                           ${c === 0 ? "col-span-3 py-3 text-xl" : "py-5 text-lg"}
@@ -147,6 +148,9 @@ export default function EnterScores() {
             <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto mb-4" />
 
             <div className="text-center mb-5">
+              <div className="text-xs opacity-50 mb-1">
+                {store.players.find(p => p.id === numpad.playerId)?.name} ka score
+              </div>
               <div className="text-5xl font-bold tracking-tight">
                 {numInput === "" ? "—" : numInput}
               </div>
@@ -192,6 +196,7 @@ export default function EnterScores() {
                 onClick={() => {
                   const v = Math.min(Number(numInput), 60);
                   if (!Number.isNaN(v) && v >= 0) {
+                    navigator.vibrate?.(20);
                     store.setTempScore(numpad.playerId, v);
                     setValidErr(null);
                   }

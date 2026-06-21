@@ -205,7 +205,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                         <StatBox label="Wins" value={r.wins} highlight={r.wins > 0} />
                         <StatBox label="Closes" value={r.closes} />
                         <StatBox label="Elim." value={r.eliminations} tone="danger" />
-                        <StatBox label="Avg Score" value={r.avgScore.toFixed(1)} />
+                        <StatBox label="Avg Score" value={Number.isInteger(r.avgScore) ? r.avgScore : r.avgScore.toFixed(1)} />
                         <StatBox label="Rounds" value={r.roundsPlayed} />
                         <StatBox label="Best Streak" value={r.bestStreak} />
                       </div>
@@ -322,7 +322,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={winsChartData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
                           <XAxis dataKey="name" tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <YAxis tick={{ fill: "#888", fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} domain={[0, Math.max(...winsChartData.map(d => d.Wins), 1) + 1]} />
                           <Tooltip
                             contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 12, fontSize: 12 }}
                             cursor={{ fill: "rgba(255,255,255,0.04)" }}

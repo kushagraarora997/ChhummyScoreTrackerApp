@@ -156,7 +156,7 @@ export default function Home({
           )}
         </div>
 
-        <div className="text-center text-[11px] opacity-40 mt-6 italic">
+        <div className="text-center text-sm opacity-60 mt-6 italic">
           "Ghar toot jaaye, par score yaad rehna chahiye."
         </div>
       </motion.div>

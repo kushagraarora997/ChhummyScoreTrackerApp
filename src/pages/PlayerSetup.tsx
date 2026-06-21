@@ -60,6 +60,7 @@ export default function PlayerSetup({
 
   const start = async () => {
     if (selected.length < 2) return;
+    navigator.vibrate?.([40, 20, 80]);
     await newSession(selected.map((p) => p.id));
     for (const p of selected) {
       await db.players.update(p.id, { lastUsedAt: Date.now() });
@@ -111,7 +112,7 @@ export default function PlayerSetup({
 
         <button
           onClick={() => setAddModal(true)}
-          className="h-20 rounded-2xl bg-card border border-dashed border-white/20 text-lg active:scale-[0.98] transition"
+          className={`h-20 rounded-2xl bg-card border border-dashed border-white/20 text-lg active:scale-[0.98] transition ${available.length === 0 ? "col-span-2" : ""}`}
         >
           + Add Player
         </button>

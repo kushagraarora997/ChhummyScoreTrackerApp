@@ -71,11 +71,47 @@ metadata:
 - The race condition this was "fixing" doesn't exist in practice — the 1200ms gap before `newSession()` is called is far longer than the ~20ms DB write
 
 **Playwright E2E screenshot tour (2026-06-21):**
-- Test at `C:\Users\kusha\AppData\Local\Temp\pw-test\screenshot-tour.mjs` — generates 19 screenshots
+- Test at `C:\Users\kusha\AppData\Local\Temp\pw-test\screenshot-tour.mjs` — generates 33 screenshots
+- UI audit script at `C:\Users\kusha\AppData\Local\Temp\pw-test\ui-audit.mjs` — generates 32 screenshots of every screen for visual review
 - Dev server must be on port 5173 (`npm run dev`)
 - Run: `node screenshot-tour.mjs` from the pw-test directory
 - Key quirk: `page.evaluate(() => document.body.getBoundingClientRect())` must precede "End Round" clicks in loops — without it, Playwright's click is fired before Framer Motion's `motion.div layout` animation system completes its initialization, and a transient DOM element intercepts the click
-- Test covers: splash, home, accordion, player setup (add modal), live game, who-closed, enter-scores (scroll), back+cancel, pause, abandon, second full game (3 rounds, winner), stats (3 tabs), hall of fame
+- Test covers: splash, home, accordion, player setup (add modal), live game, who-closed, enter-scores (scroll), back+cancel, pause, abandon, 2-player 3-round game (winner + share), stats (3 tabs), hall of fame, 3-player game (elimination, undo, redo, redo-survives-cancel, winner)
+
+**CRITICAL — db.players.toArray() ordering:**
+- Dexie's `toArray()` returns records in PRIMARY KEY (nanoid string) lexicographic order — NOT insertion order, NOT lastUsedAt order
+- nanoid = `Math.random().toString(36).slice(2) + Date.now().toString(36)` — random prefix, so order is unpredictable
+- `newSession()` sets `store.players` from raw `db.players.toArray()` — the order is random and stable within a session
+- `EnterScores` renders player sections in `store.players` order → the "first" chip button in DOM may NOT be the closer's chip
+- FIX in tests: never use `.first()` to click a specific player's chip; always scope to that player's section using `filter({ hasText: "Closer" })` or `filter({ hasText: playerName })`
+
+**CRITICAL — LiveGame bg-elevated overlap with EnterScores sections:**
+- LiveGame player cards in "normal" state (total < 70) use `bg-elevated` class + `rounded-2xl` — SAME classes as EnterScores player sections
+- So `page.locator(".rounded-2xl.bg-elevated").filter({ hasText: "Priya" })` in Playwright matches BOTH the background LiveGame card AND the EnterScores section
+- This is safe for chained `.locator("button", { hasText: "Custom" })` — the background card has no button children, so the chain uniquely resolves to the EnterScores Custom button
+- NOT safe for `.locator("button").filter({ hasText: /^0$/ }).first()` — same ambiguity between background score div (but that's a div not a button) and EnterScores chips. Since background cards only have divs (no buttons), the "0" chip button is unique within the matched set — BUT only when Arjun sorts first. With 3 players where another player sorts first in nanoid order, that player's "0" chip becomes `.first()`
+- Always use scoped closer locator: `.filter({ hasText: "Closer" }).locator("button").filter({ hasText: /^0$/ })`
+
+**CRITICAL — "End Round" button includes round number in text:**
+- Button text is "End Round #2", "End Round #3" etc — NOT just "End Round"
+- In Playwright tests, always use partial match: `{ hasText: /End Round/ }` not exact `{ hasText: "End Round" }`
+- "End Game" button (when 1 survivor remains) does NOT include the round number
+
+**CRITICAL — Who Closed player buttons selector:**
+- WhoClosed overlay renders player buttons as `<button class="h-32 rounded-2xl ...">` inside the `.fixed.inset-0.z-50` overlay
+- Correct selector: `page.locator(".fixed.inset-0.z-50 button.h-32")`
+- Do NOT use `.rounded-2xl.bg-elevated` to click Who Closed cards — that matches background LiveGame cards, and the overlay backdrop (`fixed inset-0`) intercepts the click
+
+**CRITICAL — Numpad portal blocks Playwright simulated clicks:**
+- The numpad backdrop div (`fixed inset-0 bg-black/70`) intercepts Playwright's synthetic pointer events even when targeting buttons inside it
+- Standard `.click()` on numpad buttons will timeout with "intercepts pointer events"
+- Fix: use `page.evaluate()` JS click — `page.evaluate((lbl) => { const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === lbl && b.closest('[style*="9999"]')); btn?.click(); }, label)`
+- Add Player modal confirm button text is "Add" (not "Done") — must scope to modal to avoid matching "+ Add Player": use `.fixed.inset-0.z-50 button` with `/^Add$/` regex
+
+**waitForFunction after Confirm Round:**
+- After `confirmRound()`, the FullOverlay has a 300ms Framer Motion exit animation (`exit={{ opacity: 0, y: 24 }}`)
+- Use `page.waitForFunction(() => !document.querySelector(".fixed.inset-0.z-50"), { timeout: 5000 }).catch(() => {})` to wait for overlay to fully exit before clicking Undo/Redo
+- Note: only appropriate when no elimination/winner follows (those also show z-50 overlays)
 
 **CSS gotcha — bg-inherit through wrapper divs:**
 - `bg-inherit` only inherits the computed `background-color` of the IMMEDIATE parent, not the nearest ancestor with a non-transparent background. If a child div sits inside `<div className="pb-10">` (no background), `bg-inherit` on a deeper element resolves to `transparent`, not the grandparent's colour.

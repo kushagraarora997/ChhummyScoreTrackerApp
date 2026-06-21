@@ -185,6 +185,17 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 - [x] **[DONE] Sound feedback using Web Audio API** — Fixed 2026-06-21. `src/utils/sound.ts` created with `soundWinner()` (C→E→G fanfare), `soundElimination()` (A→E sawtooth drop), `soundConfirm()` (30ms tick). Called from `confirmRound()` and `declareWinner()`. Wrapped in try/catch; respects `document.hidden`.
 
+### Extended haptics — audit 2026-06-21
+
+- [x] **[DONE] Chip tap in score entry** — Fixed 2026-06-21. `navigator.vibrate?.(8)` on each chip button click.
+- [x] **[DONE] Who Closed — player selection** — Fixed 2026-06-21. `navigator.vibrate?.(20)` when tapping a closer.
+- [x] **[DONE] Confirm Round** — Fixed 2026-06-21. `navigator.vibrate?.(30)` in handleConfirm before confirmRound().
+- [x] **[DONE] Warning threshold crossed (70+)** — Fixed 2026-06-21. `navigator.vibrate?.([30,20,30])` in confirmRound() normal-round path.
+- [x] **[DONE] Critical threshold crossed (85+)** — Fixed 2026-06-21. `navigator.vibrate?.([50,30,50,30,50])` in confirmRound() normal-round path, takes priority over warning.
+- [x] **[DONE] Start Session** — Fixed 2026-06-21. `navigator.vibrate?.([40,20,80])` in PlayerSetup start().
+- [x] **[DONE] Custom numpad ✓ confirm** — Fixed 2026-06-21. `navigator.vibrate?.(20)` when custom score is accepted.
+- [x] **[DONE] Undo confirmed** — Fixed 2026-06-21. `navigator.vibrate?.(15)` in LiveGame when "Yes" is tapped for undo.
+
 ---
 
 ## Architecture Cleanup (2026-06-21)
@@ -213,7 +224,49 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ---
 
+## Bugs
+
+- [x] **[DONE] Redo lost when entering round entry then backing out** — Fixed 2026-06-21. `endRoundStart()` was incorrectly clearing `lastUndoneRound: null`. Removed that line — redo now persists until `confirmRound()` actually commits a new round.
+
+- [x] **[DONE] Winner screen title** — Changed "{name} SURVIVES" to "{name} — Chhummy Champion". Updated in both visible card and html2canvas hidden card.
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).
 - [ ] **Deployment** — Already on Vercel. Push to main done 2026-06-21.
+
+---
+
+## UI Audit — Self-Review (2026-06-21, Playwright visual pass)
+
+32 screenshots captured across all screens. Issues found, prioritised below.
+
+### HIGH — Clearly broken or confusing
+
+- [x] **[DONE] Live game — massive empty space below player cards** — Fixed 2026-06-21. Outer div `flex flex-col`, card section `flex-1 flex flex-col justify-center`.
+
+- [x] **[DONE] Stats Charts — Y-axis domain wrong on "Wins per Player"** — Fixed 2026-06-21. `domain={[0, Math.max(...winsChartData.map(d => d.Wins), 1) + 1]}` on YAxis.
+
+- [x] **[DONE] Numpad — no player name shown** — Fixed 2026-06-21. Player name shown as `"[Name] ka score"` header inside numpad portal.
+
+### MEDIUM — Confusing or jarring
+
+- [x] **[DONE] Enter Scores — "Score: N" label is ambiguous** — Fixed 2026-06-21. Changed to "Total: N pts".
+
+- [x] **[DONE] Player Setup — Add Player button is half-width in empty state** — Fixed 2026-06-21. Added `col-span-2` class when `available.length === 0`.
+
+- [x] **[DONE] Stats — avg score shows unnecessary ".0" decimal** — Fixed 2026-06-21. `Number.isInteger(r.avgScore) ? r.avgScore : r.avgScore.toFixed(1)`.
+
+- [x] **[DONE] Score chips — asymmetric last row for non-closer** — Fixed 2026-06-21. Added chip 25 → chips are now 1,2,3 · 4,5,10 · 15,20,25 (3×3 grid) + Custom.
+
+### LOW / POLISH
+
+- [x] **[DONE] Home — tagline quote barely readable** — Fixed 2026-06-21. Changed to `text-sm opacity-60`.
+
+- [x] **[DONE] Who Closed — title doesn't show round context** — Fixed 2026-06-21. Added `"Round N"` subtitle below title.
+
+- [x] **[DONE] Live game — score number size could be bolder** — Fixed 2026-06-21. Bumped to `text-3xl` for all player cards.
+
+- [x] **[DONE] Extended haptics (8 items from earlier audit)** — Fixed 2026-06-21. All 8 haptic patterns implemented (see Extended haptics section above).
