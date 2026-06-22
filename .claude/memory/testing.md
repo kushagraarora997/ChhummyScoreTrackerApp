@@ -21,11 +21,15 @@ cd /tmp && mkdir -p pw-test && cd pw-test && npm init -y && npm install playwrig
 Then write test script as `.mjs` and run with `node test.mjs`.
 
 **Important learnings from test setup:**
-- Players auto-select when added via `addQuick()` — do NOT click them again or they deselect
-- "Who Closed?" player buttons are inside a Framer Motion animated bottom sheet — use `page.evaluate()` + `querySelector` to JS-click, not Playwright locators (animation timing causes timeouts)
-- `window.prompt()` in PlayerSetup (Add Player) can be handled with `page.once('dialog', d => d.accept('Name'))`
+- Players auto-select when added via `commitAdd()` — do NOT click them again or they deselect (toggle deselects)
+- "Who Closed?" player buttons are inside the WhoClosed overlay — use `button:has-text('PlayerName')` AFTER waiting for `text=Kaun Jeeta Be`
+- `window.prompt()` is gone — custom modal used everywhere now
 - Screenshots save to `C:/Users/kusha/AppData/Local/Temp/chhummy-{name}.png`
-- Dev server now on **port 5174** (not 5173) — confirmed 2026-06-21
+- Dev server on **port 5173** (confirmed 2026-06-23)
+- Score chip buttons use class `rounded-xl` (NOT `rounded-2xl`) — use `button.rounded-xl` to target chips
+- `text=Add Player` matches BOTH heading "Add Players" AND button "+ Add Player" — use `button:has-text('+ Add Player')` for the button
+- `button:has-text('Join')` matches BOTH "Join Room" and "Join" confirm — use `button.bg-green-600` for the green confirm button
+- For Firestore verification in tests, use REST API: `GET https://firestore.googleapis.com/v1/projects/chummyscoretracker/databases/(default)/documents/families/{code}/sessions?key={API_KEY}`
 
 **Learnings from batch-09 (2026-06-21):**
 - `page.click("text=Redo")` matches BOTH the amber span "↩ Redo available" AND the "Redo" button — always use `page.locator("button").filter({ hasText: /^Redo$/ }).first().click()`
@@ -35,6 +39,29 @@ Then write test script as `.mjs` and run with `node test.mjs`.
 - `writeStats()` is only called on game completion (winner declared), NOT on abandon. Stats page Players tab shows empty state ("Khelke aao pehle!") after an abandoned session. Tests for Stats must complete the game.
 - Framer Motion `initial={{ opacity: 0 }}` overlays: Playwright's `isVisible()` waits correctly with a timeout, so 2000ms is sufficient for animations.
 - CSS class selectors like `.text-7xl.font-black.text-danger` work in Playwright but are brittle — prefer text-based assertions for content checks.
+
+## Firebase E2E Tests (2026-06-23)
+
+**Phase 1 file:** `C:\Users\kusha\AppData\Local\Temp\pw-test\firebase-e2e.mjs`
+**Phase 1 result:** 16/16 passed ✅
+**Coverage:**
+- Room code UI (Create/Join buttons visible) ✅
+- Create Room generates valid 6-char code and persists in localStorage ✅
+- Full game round → session, round, players all written to Firestore (dual-write confirmed) ✅
+- Join Room pulls players + session from Firestore onto fresh device (pull-on-join confirmed) ✅
+
+**Phase 2 file:** `C:\Users\kusha\AppData\Local\Temp\pw-test\firebase-phase2-e2e.mjs`
+**Phase 2 result:** 12/12 passed ✅
+**Coverage:**
+- Device A creates room + starts game; Device B joins + navigates to LiveGame via "Continue Battle" button ✅
+- Both devices show "Round 1" before any round confirmed ✅
+- "● Live" indicator visible on both devices (hidden when no room code) ✅
+- Device A confirms round → Device B shows "Round 2" via onSnapshot (≤4s propagation) ✅
+- No "● Live" indicator for local-only games (no room code) ✅
+
+**Selector gotcha — Resume/Continue Battle:**
+- Home.tsx "resume" button text is "🎯 Continue Battle" NOT "Resume"
+- Use `page.locator("text=Continue Battle")` after join + init
 
 ## Known Test Gaps (as of 2026-06-22 review)
 

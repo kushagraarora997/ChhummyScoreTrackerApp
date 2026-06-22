@@ -4,7 +4,7 @@ import { useAppStore } from "../store/useAppStore";
 import type { Player } from "../db";
 import { getGlobalStats, getPlayers } from "../db/operations";
 import { getRoomCode, setRoomCode, clearRoomCode, generateRoomCode } from "../lib/roomCode";
-import { pullFromCloud } from "../lib/firebaseSync";
+import { pullFromCloud, pushToCloud } from "../lib/firebaseSync";
 
 interface HallEntry {
   name: string;
@@ -72,6 +72,8 @@ export default function Home({
     const code = generateRoomCode();
     setRoomCode(code);
     setRoomCodeState(code);
+    setSyncing(true);
+    pushToCloud(code).finally(() => setSyncing(false));
   }
 
   async function handleJoin() {

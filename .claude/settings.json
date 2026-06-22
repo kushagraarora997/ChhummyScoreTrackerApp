@@ -1,4 +1,21 @@
 {
+  "permissions": {
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(npm *)",
+      "Bash(git *)",
+      "Bash(node *)",
+      "Bash(npx *)",
+      "Bash(firebase *)",
+      "Bash(vercel *)",
+      "Bash(winget *)",
+      "Bash(Start-Process *)",
+      "Bash(Start-Sleep *)",
+      "Bash(Copy-Item *)",
+      "Bash(Remove-Item *)",
+      "Bash(Invoke-WebRequest *)"
+    ]
+  },
   "hooks": {
     "Stop": [
       {

@@ -7,8 +7,10 @@ import {
 import { Player, Session, Round } from "../db";
 import {
   getGlobalStats, getAchievements, getCompletedSessions,
-  countRoundsBySession, getRoundsBySession, getPlayers,
+  countRoundsBySession, getRoundsBySession, getPlayers, clearAllData,
 } from "../db/operations";
+import { clearRoomCode } from "../lib/roomCode";
+import { useAppStore } from "../store/useAppStore";
 
 interface H2HRecord {
   playerA: Player;
@@ -68,6 +70,7 @@ function formatDuration(ms: number) {
 }
 
 export default function StatsPage({ onBack }: { onBack: () => void }) {
+  const init = useAppStore((s) => s.init);
   const [tab, setTab] = useState<Tab>("stats");
   const [rows, setRows] = useState<PlayerStats[]>([]);
   const [history, setHistory] = useState<SessionRow[]>([]);
@@ -79,6 +82,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
   const [selectedBadge, setSelectedBadge] = useState<string | null>(null);
   const [recentRounds, setRecentRounds] = useState<Round[]>([]);
   const [recentSession, setRecentSession] = useState<Session | undefined>(undefined);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -190,6 +194,13 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
     load();
   }, []);
 
+  async function handleClearAll() {
+    await clearAllData();
+    clearRoomCode();
+    await init();
+    onBack();
+  }
+
   async function expandSession(sessionId: string) {
     if (expandedSession === sessionId) {
       setExpandedSession(null);
@@ -208,6 +219,24 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
   }));
 
   const winsChartData = chartData.filter((d) => d.Wins > 0);
+
+  // Records
+  const longestGame = history.length > 0 ? Math.max(...history.map((h) => h.roundCount)) : 0;
+  const fastestWin = history.length > 0 ? Math.min(...history.map((h) => h.roundCount)) : 0;
+
+  // Weekly chart — games per week, last 8 weeks
+  const weeklyData = (() => {
+    const counts: Record<number, number> = {};
+    for (const h of history) {
+      const offset = Math.floor((Date.now() - h.session.startedAt) / (7 * 24 * 3600 * 1000));
+      if (offset < 8) counts[offset] = (counts[offset] || 0) + 1;
+    }
+    return Array.from({ length: 8 }, (_, i) => ({
+      week: i === 0 ? "This wk" : i === 1 ? "Last wk" : `${i}w ago`,
+      Games: counts[i] || 0,
+    })).reverse();
+  })();
+  const hasWeeklyData = weeklyData.some((d) => d.Games > 0);
 
   // Recent session trend chart data
   const recentPlayerIds = recentSession?.playerIds ?? [];
@@ -478,6 +507,48 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                 </div>
               ) : (
                 <div className="space-y-6">
+                  {/* Records */}
+                  {history.length > 0 && (
+                    <div className="rounded-2xl bg-card border border-white/5 p-4">
+                      <div className="text-sm font-semibold mb-3 opacity-70 uppercase tracking-wide">Records</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-elevated p-3 text-center">
+                          <div className="text-2xl font-black text-warning">{longestGame}</div>
+                          <div className="text-[10px] opacity-50 mt-0.5 uppercase tracking-wide">Longest Game</div>
+                          <div className="text-[10px] opacity-35">rounds</div>
+                        </div>
+                        <div className="rounded-xl bg-elevated p-3 text-center">
+                          <div className="text-2xl font-black text-success">{fastestWin}</div>
+                          <div className="text-[10px] opacity-50 mt-0.5 uppercase tracking-wide">Fastest Win</div>
+                          <div className="text-[10px] opacity-35">rounds</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Weekly activity */}
+                  {hasWeeklyData && (
+                    <div className="rounded-2xl bg-card border border-white/5 p-4">
+                      <div className="text-sm font-semibold mb-0.5 opacity-70 uppercase tracking-wide">Weekly Activity</div>
+                      <div className="text-[11px] opacity-35 mb-4">Games played per week</div>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <BarChart data={weeklyData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                          <XAxis dataKey="week" tick={{ fill: "#888", fontSize: 9 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fill: "#888", fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 12, fontSize: 12 }}
+                            cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                          />
+                          <Bar dataKey="Games" radius={[4, 4, 0, 0]}>
+                            {weeklyData.map((d, i) => (
+                              <Cell key={i} fill={d.Games > 0 ? "#60A5FA" : "#1f2937"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
                   {/* Score trend for most recent game */}
                   {recentChartData.length > 0 && recentSession && (
                     <div className="rounded-2xl bg-card border border-white/5 p-4">
@@ -562,6 +633,37 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
             )}
           </div>
         )}
+
+        {/* Clear All Data — always visible */}
+        <div className="px-4 mt-8 mb-4">
+          {!confirmClear ? (
+            <button
+              onClick={() => setConfirmClear(true)}
+              className="w-full py-3 rounded-2xl bg-card border border-danger/20 text-danger/60 text-sm font-medium"
+            >
+              🗑 Clear All Data
+            </button>
+          ) : (
+            <div className="rounded-2xl bg-card border border-danger/30 p-4">
+              <div className="text-sm font-semibold text-danger mb-1">Sab delete ho jayega</div>
+              <div className="text-xs opacity-50 mb-3">Players, scores, history — sab kuch. Cloud data safe rehti hai.</div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleClearAll}
+                  className="flex-1 py-2.5 rounded-xl bg-danger text-white text-sm font-bold active:scale-95 transition"
+                >
+                  Haan, delete karo
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-elevated text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </motion.div>
     </div>
   );

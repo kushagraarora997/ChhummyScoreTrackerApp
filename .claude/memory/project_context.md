@@ -112,15 +112,44 @@ UI polish also applied (same session):
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)
 - Test coverage for new features (confetti, rematch, player history, mid-game share, h2h, batch-11 features) — no Playwright tests written yet
-- Cross-device sync (planned, see below)
+- Cross-device sync (Firebase — in progress, see below)
+
+**Firebase Setup Status (2026-06-23 — PHASE 1 COMPLETE ✅):**
+- Firebase project: `chummyscoretracker` (created via Firebase console, project number 633100813203)
+- Firestore database: `(default)`, region `asia-south1` (Mumbai) ✅
+- Web app: App ID `1:633100813203:web:12248cd2d4df357ac5de66` ✅
+- Firestore rules deployed: `families/{familyId}/**` open read/write (room code = auth) ✅
+- Firebase config embedded in `src/lib/firebase.ts` (web API keys are public identifiers, security via rules)
+- `firebase.json` + `firestore.rules` in repo; committed `51b1a28`, Vercel auto-deployed ✅
+- User gave blanket go-ahead to proceed without per-step approval for Firebase work
+
+**Phase 1 features (2026-06-23):**
+- `src/lib/firebase.ts` — Firebase singleton (app + Firestore)
+- `src/lib/roomCode.ts` — 6-char room code generate/get/set/clear (localStorage: `chhummy_room_code`)
+- `src/lib/firebaseSync.ts` — syncPlayer/Session/Round, deleteRoundFromCloud, deletePlayerFromCloud, pullFromCloud
+- `src/db/operations.ts` — all mutations fire-and-forget sync to Firestore when room code is set
+- `src/pages/Home.tsx` — "📡 Family Sync" section: Create Room, Join Room (pull-on-join + re-init), Change Room
+- Firestore schema: `families/{familyId}/players|sessions|rounds`
+
+**Phase 2 NOT YET BUILT:**
+- Real-time `onSnapshot` subscription (live score updates on all phones mid-round without refresh)
+
+**Known Phase 1 Architectural Gaps (identified 2026-06-23):**
+1. **Offline write loss** — failed Firestore writes are silently dropped; no retry queue. Rounds confirmed while offline don't reach Firestore. Fix: offline queue that buffers failed writes and flushes on reconnect.
+2. **Missing `orderBy` on active session pull** — `pullFromCloud` queries active sessions without `orderBy("startedAt", "desc")`. If two sessions are accidentally active, undefined behavior. One-line fix in `firebaseSync.ts`.
+3. **Stats/achievements not synced** — `writeStats()` is Dexie-only. Hall of Fame and Stats page are device-local. No fix implemented yet.
+4. **Player deduplication risk** — two devices creating same-named player independently before joining = both in cloud, both appear after join.
+5. **Room code only in localStorage** — clearing site data loses the room code with no recovery path.
 
 **Two-Repo Strategy — Decided 2026-06-22:**
-- **Repo 1 (current):** `ChhummyScoreTrackerApp` — Firebase Firestore sync. Priority: family delivery speed. Ship quickly, family uses it.
-- **Repo 2 (new):** Clone of Repo 1 — Spring Boot + PostgreSQL + WebSocket backend. Priority: resume/portfolio. Shows Java backend skills.
+- **Repo 1 (current):** `kushagraarora997/ChhummyScoreTrackerApp` — Firebase Firestore sync. Priority: family delivery speed. Ship quickly, family uses it.
+- **Repo 2 (new):** `kushagraarora997/ChhummyTracker-Server` (public) — Spring Boot + PostgreSQL + WebSocket backend. Priority: resume/portfolio. Shows Java backend skills.
+- **Fork status (2026-06-22):** COMPLETE. `ChhummyTracker-Server` live at github.com/kushagraarora997/ChhummyTracker-Server. Full codebase pushed. Backup at `C:\Users\kusha\chhummy-tracker-backup`.
 - **Fork timing:** Fork Repo 2 BEFORE Firebase code is added to Repo 1 (so Repo 2 starts clean).
-- **Pre-work first:** Do the 3 architecture refactors in Repo 1 first, THEN fork, THEN add Firebase to Repo 1 + Spring Boot to Repo 2.
+- **Pre-work:** All 3 architecture refactors done (commit b22c8ed). CLAUDE.md updated. Ready to push code once GitHub repo exists.
 - **Maintenance policy:** Repo 1 is source of truth for UI. Any game logic/UI fix in Repo 1 must be manually ported to Repo 2. The two repos only diverge at the sync layer.
 - **No cross-cloud data sharing** — two truly separate deployments. Family uses Repo 1. Resume demos Repo 2.
+- **gh CLI:** Installed v2.95.0 at `C:\Program Files\GitHub CLI` (installed 2026-06-22 via winget). Needs `$env:PATH = $env:PATH + ";C:\Program Files\GitHub CLI"` in each PowerShell session. Authenticated as `kushagraarora997` via device code flow (`gh auth login --hostname github.com --git-protocol https --web`). Use device code flow for future auth — PAT approach is unreliable (GitHub auto-revokes tokens pasted in chat).
 
 **Cross-Device Sync — Planned (2026-06-22, not yet implemented):**
 - Stack (Repo 1): **Firebase Firestore** — `onSnapshot` real-time, offline-first automatic, fastest to ship.

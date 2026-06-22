@@ -1,10 +1,10 @@
 import {
   doc, setDoc, deleteDoc,
-  getDocs, collection, query, where, limit, onSnapshot,
+  getDocs, getDoc, collection, query, where, limit, onSnapshot,
 } from "firebase/firestore";
 import { firestore } from "./firebase";
 import { db } from "../db";
-import type { Player, Session, Round } from "../db";
+import type { Player, Session, Round, Stats, Achievement } from "../db";
 
 function base(familyId: string) {
   return `families/${familyId}`;
@@ -37,13 +37,43 @@ export function deletePlayerFromCloud(familyId: string, playerId: string): Promi
     .catch((e) => console.warn("[firebase] deletePlayerFromCloud failed", e));
 }
 
+export function syncStats(familyId: string, stats: Stats): Promise<void> {
+  return setDoc(doc(firestore, base(familyId), "stats", "global"), stats)
+    .catch((e) => console.warn("[firebase] syncStats failed", e));
+}
+
+export function syncAchievement(familyId: string, achievement: Achievement): Promise<void> {
+  return setDoc(doc(firestore, base(familyId), "achievements", achievement.id), achievement)
+    .catch((e) => console.warn("[firebase] syncAchievement failed", e));
+}
+
+// ── Push all local data to cloud (used when creating a room with existing local data) ──
+
+export async function pushToCloud(familyId: string): Promise<void> {
+  const [players, sessions, rounds, statsRow, achievements] = await Promise.all([
+    db.players.toArray(),
+    db.sessions.toArray(),
+    db.rounds.toArray(),
+    db.stats.get("global"),
+    db.achievements.toArray(),
+  ]);
+  const writes: Promise<void>[] = [
+    ...players.map((p) => syncPlayer(familyId, p)),
+    ...sessions.map((s) => syncSession(familyId, s)),
+    ...rounds.map((r) => syncRound(familyId, r)),
+    ...achievements.map((a) => syncAchievement(familyId, a)),
+  ];
+  if (statsRow) writes.push(syncStats(familyId, statsRow));
+  await Promise.all(writes);
+}
+
 // ── Pull from cloud (on room join) ────────────────────────────────────────────
 
 export async function pullFromCloud(familyId: string): Promise<{
   playerCount: number;
   hasActiveSession: boolean;
 }> {
-  const [playersSnap, sessionsSnap] = await Promise.all([
+  const [playersSnap, sessionsSnap, statsSnap, achievementsSnap] = await Promise.all([
     getDocs(collection(firestore, base(familyId), "players")),
     getDocs(
       query(
@@ -52,6 +82,8 @@ export async function pullFromCloud(familyId: string): Promise<{
         limit(1),
       )
     ),
+    getDoc(doc(firestore, base(familyId), "stats", "global")),
+    getDocs(collection(firestore, base(familyId), "achievements")),
   ]);
 
   const players = playersSnap.docs.map((d) => d.data() as Player);
@@ -72,6 +104,11 @@ export async function pullFromCloud(familyId: string): Promise<{
     const rounds = roundsSnap.docs.map((d) => d.data() as Round);
     if (rounds.length > 0) await db.rounds.bulkPut(rounds);
   }
+
+  if (statsSnap.exists()) await db.stats.put(statsSnap.data() as Stats);
+
+  const achievements = achievementsSnap.docs.map((d) => d.data() as Achievement);
+  if (achievements.length > 0) await db.achievements.bulkPut(achievements);
 
   return { playerCount: players.length, hasActiveSession };
 }

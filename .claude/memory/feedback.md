@@ -54,3 +54,15 @@ How to apply: When discovering a sub-bug or root cause mid-task, describe the fi
 **Rule: Always respond in formal English — never Hindi.**
 Why: User explicitly corrected Hindi response mid-session with "I have asked you to only reply in English formally, Why hindi?"
 How to apply: All assistant replies must be in formal English. App UI strings (e.g. "Yeh naam pehle se hai!") may remain in Hindi as they are product copy, not assistant communication.
+
+**Rule: Install CLI tools autonomously when needed — don't ask.**
+Why: User said "Tujhe jitne apps required lage, unka cli khud daal kia kar bhai" and "I want full automation."
+How to apply: When a CLI tool is missing (gh, jq, etc.), install it via winget without asking. Don't stop to request permission for tool installation.
+
+**Rule: Full automation — no stopping to ask for credentials or manual steps when avoidable.**
+Why: User said "I want full automation" when asked to generate a GitHub PAT manually.
+How to apply: Find automated paths for auth and repo operations. If truly blocked (e.g., credential store access denied by security classifier), explain the blocker once and present the single minimum action needed — don't walk through multi-step manual processes.
+
+**Rule: Project is configured for auto-mode — expect fewer permission prompts.**
+Why: User ran /fewer-permission-prompts (2026-06-23). `.claude/settings.json` now has `defaultMode: "auto"` and an allow list for npm, git, node, npx, firebase, vercel, winget, and common PowerShell commands.
+How to apply: Don't be surprised when bash/PowerShell commands run without prompting. The allow list covers most operations in this project.

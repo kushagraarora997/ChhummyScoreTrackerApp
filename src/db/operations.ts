@@ -4,6 +4,7 @@ import { getRoomCode } from "../lib/roomCode";
 import {
   syncPlayer, syncSession, syncRound,
   deleteRoundFromCloud, deletePlayerFromCloud,
+  syncStats, syncAchievement,
 } from "../lib/firebaseSync";
 
 function fid() { return getRoomCode(); }
@@ -91,8 +92,10 @@ export function getGlobalStats(): Promise<Stats | undefined> {
   return db.stats.get("global");
 }
 
-export function putStats(stats: Stats): Promise<string> {
-  return db.stats.put(stats);
+export async function putStats(stats: Stats): Promise<string> {
+  const result = await db.stats.put(stats);
+  const f = fid(); if (f) syncStats(f, stats);
+  return result;
 }
 
 // ── Achievements ──────────────────────────────────────────────────────────────
@@ -101,8 +104,21 @@ export function getAchievements(): Promise<Achievement[]> {
   return db.achievements.toArray();
 }
 
-export function addAchievement(achievement: Omit<Achievement, "id">): Promise<string> {
-  return db.achievements.add({ ...achievement, id: nanoid() });
+export async function addAchievement(achievement: Omit<Achievement, "id">): Promise<string> {
+  const full = { ...achievement, id: nanoid() };
+  await db.achievements.add(full);
+  const f = fid(); if (f) syncAchievement(f, full);
+  return full.id;
+}
+
+export async function clearAllData(): Promise<void> {
+  await Promise.all([
+    db.players.clear(),
+    db.sessions.clear(),
+    db.rounds.clear(),
+    db.stats.clear(),
+    db.achievements.clear(),
+  ]);
 }
 
 // ── Stats Writing ─────────────────────────────────────────────────────────────

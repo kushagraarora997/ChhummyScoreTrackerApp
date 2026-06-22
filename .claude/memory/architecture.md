@@ -39,16 +39,28 @@ metadata:
 - `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` all migrated — zero `db.*` calls in any page
 - `updatePlayer(id, Partial<Player>)` and `deletePlayer(id)` added 2026-06-22 for player management feature
 
-**Remaining structural debt (as of 2026-06-22):**
-1. **`confirmRound()` is 170+ lines** — six responsibilities. Risky to touch.
-2. **Whole-store Zustand subscription** — `const store = useAppStore()` re-renders on ANY state change. Should use selectors. Not visible at this scale.
-3. **`writeStats` still in `useAppStore.ts`** — module-level function, natural home is operations.ts.
-4. No lazy loading — all pages imported eagerly (fine at this size).
+**Remaining structural debt (as of 2026-06-22, post pre-work):**
+1. **No error boundary** — IndexedDB errors silently crash the store. Low priority.
+2. **`getPlayers()` redundant call in `newSession()`** — intentional, picks up PlayerSetup edits.
+3. No lazy loading — all pages imported eagerly (fine at this size).
+
+**Pre-work COMPLETED (commit b22c8ed, 2026-06-22):**
+1. `resolveRoundOutcome(playerIds, prevTotals, totals, survivors)` — extracted as module-level pure function WITHIN `useAppStore.ts` (NOT in operations.ts — it is pure logic, no DB access). Returns `{ outcome: "normal"|"elimination"|"winner"|"allOut", justEliminated }`. `confirmRound()` calls it and switches on outcome.
+2. `writeStats()` — moved to `src/db/operations.ts`. Store imports it from there. Zero module-level DB logic remains in store.
+3. Per-field Zustand selectors — `LiveGame`, `EnterScores`, `WhoClosed` all use `useAppStore(s => s.field)`. Zero `const store = useAppStore()` whole-store subscriptions in these components.
 
 **Minor code observations (2026-06-22):**
 - `App.tsx:35` background gradient uses `from-[#050816]` (blue-tinted), not design system's `#050505`. Barely visible.
-- `getTotals()` called on every render in LiveGame — not memoized. Fine at this scale.
-- `EnterScores` running total shows 💀 when `currentTotal + pending >= 100` mid-entry — player isn't actually eliminated yet. Minor UX ambiguity, not a bug.
+- `getTotals()` memoized in LiveGame via `useMemo([rounds])` — only recomputes when rounds change.
+- `EnterScores` running total shows 💀 when `currentTotal + pending > 100` — player isn't actually eliminated yet. Minor UX ambiguity, not a bug.
+
+**Fork readiness review (2026-06-22):**
+- Source code: clean ✅ — no `db.*` calls in store/pages, selectors in place, pure functions extracted
+- Build: passes, 1022KB/295KB gzip ✅
+- Tests: 67/67 ✅
+- Known bugs: none ✅
+- **CLAUDE.md fully updated (2026-06-22)** — "What Is Built" now covers all features; writeStats location correctly documented as `src/db/operations.ts`; deployment status accurate. Ready for fork.
+- Backup of repo created at `C:\Users\kusha\chhummy-tracker-backup` before CLAUDE.md edits.
 
 **Sound utility (2026-06-21):**
 - `src/utils/sound.ts` — Web Audio API tones. `soundWinner()`, `soundElimination()`, `soundConfirm()`.
@@ -84,6 +96,12 @@ metadata:
 - `await db.sessions.put(...)` FIRST, then `set({ activeSession: undefined, ... })`
 - Reason: if `set()` fires before the await, Zustand's `useSyncExternalStore` triggers a synchronous re-render of LiveGame while route is still "live" (React batch hasn't processed `setRoute("home")` yet), showing the "No active session." fallback
 - The race condition this was "fixing" doesn't exist in practice — the 1200ms gap before `newSession()` is called is far longer than the ~20ms DB write
+
+**Batch-14 comprehensive suite (2026-06-22, 67/67 PASS):**
+- Test file: `C:\Users\kusha\AppData\Local\Temp\pw-test\batch14.mjs`
+- 67 tests across 11 groups. Run: `node batch14.mjs` (dev server on port 5173)
+- Key locator gotcha: `page.waitForSelector("text=Round History")` matched the LiveGame tap hint "Tap any card to see **round history**" (Playwright `text=` is case-insensitive partial match). PlayerHistorySheet has no "Round History" heading — use `text=rounds played` instead (unique to PlayerHistorySheet).
+- Backdrop close detection: use `page.mouse.click(x, y)` (absolute viewport coords, no hit-test check) then `waitForTimeout(900)` + `isVisible` check. Do NOT use `locator.click({ position })` for backdrop clicks — it performs a hit-test which can fail if z-indices are unclear.
 
 **Multi-player test suite (2026-06-22):**
 - Test file: `C:\Users\kusha\AppData\Local\Temp\pw-test\multi-player-tests.mjs`
@@ -158,13 +176,10 @@ metadata:
 - `devtools` middleware: `{ enabled: import.meta.env.DEV }` — disabled in production build
 - `getTotals()` in LiveGame: wrapped in `useMemo([rounds])` — only recomputes when rounds array changes
 
-**Remaining structural debt (as of 2026-06-22) — planned as pre-work before Spring Boot integration:**
-1. **`confirmRound()` is 170+ lines** — Extract `resolveRoundOutcome(totals, survivors, closerId)` → returns `"normal" | "elimination" | "winner" | "allOut"`. `confirmRound()` calls it and switches on result. MUST do before adding HTTP + WebSocket calls to confirmRound.
-2. **`writeStats()` must move to `src/db/operations.ts`** — currently module-level in store. Will need `syncStatsToCloud()` counterpart; cleaner if both live in operations.
-3. **Whole-store Zustand subscription** — `const store = useAppStore()` re-renders on ANY state change. Replace with selectors (`useAppStore(s => s.players)`) in LiveGame, EnterScores, WhoClosed before WebSocket events start driving frequent updates.
-4. **No error boundary** — IndexedDB errors (quota, corruption) silently crash the store; add try/catch in `confirmRound()` at minimum.
-5. **`getPlayers()` redundant call in `newSession()`** — intentional (needed to pick up player edits from PlayerSetup local state), but could be avoided if PlayerSetup updated the Zustand store on edit.
-6. No lazy loading — all pages imported eagerly (fine at this size).
+**Remaining structural debt (as of 2026-06-22, post pre-work):**
+- **No error boundary** — IndexedDB errors (quota, corruption) silently crash the store; add try/catch in `confirmRound()` at minimum.
+- **`getPlayers()` redundant call in `newSession()`** — intentional (needed to pick up player edits from PlayerSetup local state), but could be avoided if PlayerSetup updated the Zustand store on edit.
+- No lazy loading — all pages imported eagerly (fine at this size).
 
 **Undo/Redo analysis (2026-06-22):**
 - Undo to round 0 → guarded, dealer resets to 0. ✓
@@ -212,3 +227,14 @@ metadata:
 
 **Watch out:**
 - `LiveGame.tsx` previously had U+201D curly right double quotes in JSX className attrs. Fixed 2026-06-21. Check for smart quotes (`cat -v`) if builds look wrong.
+
+**Firebase Phase 2 — real-time sync (implemented 2026-06-23, commit dd6a254):**
+- `subscribeToRounds(familyId, sessionId, onRound)` + `subscribeToSession(familyId, sessionId, onSession)` in `src/lib/firebaseSync.ts` — returns unsubscribe fn; uses `onSnapshot` with `docChanges()` filtering for "added"|"modified"
+- `ingestCloudRound(round)` + `ingestCloudSession(session)` actions in `useAppStore.ts`
+- `LiveGame.tsx`: subscription `useEffect` starts when `roomCode + session` exist; cleans up on unmount; dep array is `[session?.id, roomCode]`
+- "● Live" green pill (`bg-success/20 text-success text-[10px]`) shown in LiveGame header when `roomCode` is set
+
+**CRITICAL — ingestCloudRound race condition (fixed 2026-06-23):**
+- Firestore SDK immediately applies `setDoc` to its local cache BEFORE network round-trip. This triggers `onSnapshot` on the same device that wrote the doc — potentially BEFORE `confirmRound()`'s `set()` runs.
+- Initial naive check `if (rounds.some((r) => r.id === round.id)) return` passes (rounds=[] at start of ingest), then `await putRound` completes AFTER `confirmRound`'s `set({ rounds: [round1] })` runs, so the ingest's functional `set((s) => [...s.rounds, round])` appends a DUPLICATE (s.rounds already has round1).
+- Fix: double-check INSIDE the functional setter: `set((s) => { if (s.rounds.some(...)) return s; return {...} })` — the functional setter always has the latest state at call time, so it won't add a round that another set() already added.
