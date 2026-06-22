@@ -8,31 +8,37 @@ const CHIPS = [0, 1, 2, 3, 4, 5, 10, 15, 20, 25];
 const CLOSER_CHIPS = [0, 1, 2, 3, 4, 5];
 
 export default function EnterScores() {
-  const store = useAppStore();
+  const session = useAppStore((s) => s.activeSession)!;
+  const overlay = useAppStore((s) => s.ui.overlay);
+  const allPlayers = useAppStore((s) => s.players);
+  const tempScores = useAppStore((s) => s.tempScores);
+  const getTotals = useAppStore((s) => s.getTotals);
+  const setTempScore = useAppStore((s) => s.setTempScore);
+  const endRoundStart = useAppStore((s) => s.endRoundStart);
+  const confirmRound = useAppStore((s) => s.confirmRound);
+
   const [validErr, setValidErr] = useState<string | null>(null);
   const [numpad, setNumpad] = useState<{ playerId: string } | null>(null);
   const [numInput, setNumInput] = useState("");
 
-  const session = store.activeSession!;
-  const closerId =
-    store.ui.overlay.type === "enterScores" ? store.ui.overlay.closerId : "";
-  const totals = store.getTotals();
+  const closerId = overlay.type === "enterScores" ? overlay.closerId : "";
+  const totals = getTotals();
 
-  const playerMap = new Map(store.players.map((p) => [p.id, p]));
+  const playerMap = new Map(allPlayers.map((p) => [p.id, p]));
   const players = session.playerIds
     .map((id) => playerMap.get(id))
-    .filter((p): p is (typeof store.players)[0] => !!p && (totals[p.id] || 0) <= 100);
+    .filter((p): p is (typeof allPlayers)[0] => !!p && (totals[p.id] || 0) <= 100);
 
   function handleConfirm() {
-    const missing = players.some((p) => store.tempScores[p.id] === undefined);
+    const missing = players.some((p) => tempScores[p.id] === undefined);
     if (missing) { setValidErr("Sabka score daal pehle 😭"); return; }
-    if (closerId && (store.tempScores[closerId] ?? 0) > 5) {
+    if (closerId && (tempScores[closerId] ?? 0) > 5) {
       setValidErr("Closer 5 se zyada score nahi ho sakta 😭");
       return;
     }
     setValidErr(null);
     navigator.vibrate?.(30);
-    store.confirmRound();
+    confirmRound();
   }
 
   return (
@@ -43,7 +49,7 @@ export default function EnterScores() {
             const isCloser = p.id === closerId;
             const chips = isCloser ? CLOSER_CHIPS : CHIPS;
             const currentTotal = totals[p.id] || 0;
-            const pending = store.tempScores[p.id];
+            const pending = tempScores[p.id];
 
             return (
               <div key={p.id} className="rounded-2xl bg-elevated p-3 border border-white/5">
@@ -66,11 +72,11 @@ export default function EnterScores() {
 
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {chips.map((c) => {
-                    const selected = store.tempScores[p.id] === c;
+                    const selected = tempScores[p.id] === c;
                     return (
                       <button
                         key={c}
-                        onClick={() => { navigator.vibrate?.(8); store.setTempScore(p.id, c); setValidErr(null); }}
+                        onClick={() => { navigator.vibrate?.(8); setTempScore(p.id, c); setValidErr(null); }}
                         className={`
                           rounded-xl font-semibold transition active:scale-[0.97]
                           ${c === 0 ? "col-span-3 py-3 text-xl" : "py-5 text-lg"}
@@ -124,7 +130,7 @@ export default function EnterScores() {
             Confirm Round
           </button>
           <button
-            onClick={store.endRoundStart}
+            onClick={endRoundStart}
             className="mt-2 w-full py-3 rounded-2xl bg-card border border-white/10 text-sm opacity-60"
           >
             ← Back
@@ -150,7 +156,7 @@ export default function EnterScores() {
 
             <div className="text-center mb-5">
               <div className="text-xs opacity-50 mb-1">
-                {store.players.find(p => p.id === numpad.playerId)?.name} ka score
+                {allPlayers.find(p => p.id === numpad.playerId)?.name} ka score
               </div>
               <div className="text-5xl font-bold tracking-tight">
                 {numInput === "" ? "—" : numInput}
@@ -198,7 +204,7 @@ export default function EnterScores() {
                   const v = Math.min(Number(numInput), 60);
                   if (!Number.isNaN(v) && v >= 0) {
                     navigator.vibrate?.(20);
-                    store.setTempScore(numpad.playerId, v);
+                    setTempScore(numpad.playerId, v);
                     setValidErr(null);
                   }
                   setNumpad(null);

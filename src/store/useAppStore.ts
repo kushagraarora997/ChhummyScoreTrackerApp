@@ -1,129 +1,28 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import { Player, Session, Round, Stats, Achievement } from "../db";
+import { Player, Session, Round } from "../db";
 import { nanoid } from "../utils/nanoid";
 import { soundWinner, soundElimination, soundConfirm } from "../utils/sound";
 import {
   getPlayers, getActiveSession, getRoundsBySession,
   addSession, putSession,
   addRound, putRound, deleteRound,
-  getGlobalStats, putStats,
-  addAchievement,
+  writeStats,
 } from "../db/operations";
 
-async function writeStats(session: Session, allRounds: Round[]) {
-  const existing = await getGlobalStats();
-  const base: Stats = existing ?? {
-    id: "global",
-    totals: {
-      wins: {},
-      closes: {},
-      eliminations: {},
-      averageScore: {},
-      survivalRounds: {},
-      streaks: { closeStreak: {}, bestCloseStreak: {} },
-    },
-  };
-  const t = base.totals;
-
-  if (session.winnerId) {
-    t.wins[session.winnerId] = (t.wins[session.winnerId] || 0) + 1;
-  }
-
-  for (const r of allRounds) {
-    t.closes[r.closerId] = (t.closes[r.closerId] || 0) + 1;
-  }
-
-  const lastTotals = allRounds[allRounds.length - 1]?.totals ?? {};
-  for (const pid of session.playerIds) {
-    if (pid !== session.winnerId && (lastTotals[pid] || 0) > 100) {
-      t.eliminations[pid] = (t.eliminations[pid] || 0) + 1;
-    }
-  }
-
-  for (const pid of session.playerIds) {
-    const roundsIn = allRounds.filter((r) => pid in r.scores).length;
-    const sessionTotal = allRounds.reduce((s, r) => s + (r.scores[pid] || 0), 0);
-    const prev = t.survivalRounds[pid] || 0;
-    const newRounds = prev + roundsIn;
-    t.survivalRounds[pid] = newRounds;
-    if (newRounds > 0) {
-      t.averageScore[pid] = Math.round(
-        ((t.averageScore[pid] || 0) * prev + sessionTotal) / newRounds
-      );
-    }
-  }
-
-  const currentStreak: Record<string, number> = {};
-  for (const pid of session.playerIds) currentStreak[pid] = 0;
-  for (const r of allRounds) {
-    for (const pid of session.playerIds) {
-      if (r.closerId === pid) {
-        currentStreak[pid]++;
-        if (currentStreak[pid] > (t.streaks.bestCloseStreak[pid] || 0)) {
-          t.streaks.bestCloseStreak[pid] = currentStreak[pid];
-        }
-      } else {
-        currentStreak[pid] = 0;
-      }
-    }
-  }
-  for (const pid of session.playerIds) {
-    t.streaks.closeStreak[pid] = currentStreak[pid];
-  }
-
-  await putStats(base);
-
-  // Achievements
-  const achievements: Omit<Achievement, "id">[] = [];
-  const winnerId = session.winnerId;
-  const sid = session.id;
-  const now = Date.now();
-
-  if (winnerId) {
-    // ICE_COLD: winner finished with 0 total points
-    if ((lastTotals[winnerId] || 0) === 0) {
-      achievements.push({ playerId: winnerId, key: "ICE_COLD", sessionId: sid, createdAt: now });
-    }
-    // UNTOUCHABLE: winner never reached warning zone (70+) at any point
-    const neverWarn = allRounds.every((r) => (r.totals[winnerId] || 0) < 70);
-    if (neverWarn) {
-      achievements.push({ playerId: winnerId, key: "UNTOUCHABLE", sessionId: sid, createdAt: now });
-    }
-    // SURVIVOR: winner was in critical zone (85+) at some point but still won
-    const wasCritical = allRounds.some((r) => (r.totals[winnerId] || 0) >= 85);
-    if (wasCritical) {
-      achievements.push({ playerId: winnerId, key: "SURVIVOR", sessionId: sid, createdAt: now });
-    }
-  }
-
-  // CLUTCH_MASTER: player who closed the most rounds in this session (unique leader only)
-  const closeCount: Record<string, number> = {};
-  for (const r of allRounds) closeCount[r.closerId] = (closeCount[r.closerId] || 0) + 1;
-  const maxC = Math.max(0, ...Object.values(closeCount));
-  const leaders = Object.entries(closeCount).filter(([, v]) => v === maxC);
-  if (maxC > 0 && leaders.length === 1) {
-    achievements.push({ playerId: leaders[0][0], key: "CLUTCH_MASTER", sessionId: sid, createdAt: now });
-  }
-
-  // PATSY: first player to be eliminated
-  let firstOut: string | null = null;
-  let firstOutRound = Infinity;
-  for (const pid of session.playerIds) {
-    for (let i = 0; i < allRounds.length; i++) {
-      if ((allRounds[i].totals[pid] || 0) > 100) {
-        if (i < firstOutRound) { firstOutRound = i; firstOut = pid; }
-        break;
-      }
-    }
-  }
-  if (firstOut) {
-    achievements.push({ playerId: firstOut, key: "PATSY", sessionId: sid, createdAt: now });
-  }
-
-  for (const a of achievements) {
-    await addAchievement(a);
-  }
+function resolveRoundOutcome(
+  playerIds: string[],
+  prevTotals: Record<string, number>,
+  totals: Record<string, number>,
+  survivors: string[],
+): { outcome: "normal" | "elimination" | "winner" | "allOut"; justEliminated: string[] } {
+  const justEliminated = playerIds.filter(
+    (pid) => prevTotals[pid] <= 100 && totals[pid] > 100
+  );
+  if (justEliminated.length > 0 && survivors.length > 1) return { outcome: "elimination", justEliminated };
+  if (survivors.length === 0) return { outcome: "allOut", justEliminated };
+  if (survivors.length === 1) return { outcome: "winner", justEliminated };
+  return { outcome: "normal", justEliminated };
 }
 
 type UIOverlay =
@@ -280,35 +179,22 @@ export const useAppStore = create<AppState>()(
     },
 
     async confirmRound() {
-      const {
-        activeSession,
-        rounds,
-        tempScores,
-        ui,
-        getTotals,
-      } = get();
-
+      const { activeSession, rounds, tempScores, ui, getTotals } = get();
       if (!activeSession) return;
-
       if (ui.overlay.type !== "enterScores") return;
 
       const closerId = ui.overlay.closerId;
-
       const prevTotals = getTotals();
 
       const scores: Record<string, number> = {};
-
       for (const pid of activeSession.playerIds) {
         scores[pid] = tempScores[pid] ?? 0;
       }
 
       const number = rounds.length + 1;
-
       const totals: Record<string, number> = {};
-
       for (const pid of activeSession.playerIds) {
-        totals[pid] =
-          (prevTotals[pid] || 0) + (scores[pid] || 0);
+        totals[pid] = (prevTotals[pid] || 0) + (scores[pid] || 0);
       }
 
       const round: Round = {
@@ -323,135 +209,84 @@ export const useAppStore = create<AppState>()(
 
       await addRound(round);
 
-      const nextDealerIndex =
-        activeSession.playerIds.indexOf(closerId);
-
+      const nextDealerIndex = activeSession.playerIds.indexOf(closerId);
       const updatedSession: Session = {
         ...activeSession,
         dealerIndex: nextDealerIndex,
         lastRoundId: round.id,
       };
-
       await putSession(updatedSession);
 
-      const survivors =
-        activeSession.playerIds.filter(
-          (pid) => totals[pid] <= 100
-        );
+      const survivors = activeSession.playerIds.filter((pid) => totals[pid] <= 100);
+      const allRounds = [...rounds, round];
 
       set({
-        rounds: [...rounds, round],
+        rounds: allRounds,
         activeSession: updatedSession,
         lastUndoneRound: null,
-        ui: {
-          overlay: { type: "none" },
-        },
+        ui: { overlay: { type: "none" } },
         tempScores: {},
       });
 
-      const justEliminated =
-        activeSession.playerIds.filter(
-          (pid) =>
-            prevTotals[pid] <= 100 &&
-            totals[pid] > 100
-        );
-
-      if (justEliminated.length > 0 && survivors.length > 1) {
-        // Elimination with game still continuing — play elimination sound/haptic
-        soundElimination();
-        navigator.vibrate?.([200, 100, 200]);
-        const pmap = await getPlayers();
-        const first = justEliminated[0];
-        const name =
-          pmap.find((p) => p.id === first)?.name || "Player";
-        set((s) => ({
-          ui: {
-            ...s.ui,
-            overlay: { type: "eliminated", name, total: totals[first] },
-          },
-        }));
-        return;
-      }
-
-      // Everyone crossed 100 in the same round — lowest total wins; tie broken by closer
-      if (survivors.length === 0) {
-        const allPlayers = activeSession.playerIds;
-        const lowestTotal = Math.min(...allPlayers.map((pid) => totals[pid]));
-        const lowestPlayers = allPlayers.filter((pid) => totals[pid] === lowestTotal);
-        const tieWinnerId = lowestPlayers.includes(closerId)
-          ? closerId
-          : lowestPlayers[0];
-
-        const final = totals[tieWinnerId] || 0;
-        const closes = [...rounds, round].filter((r) => r.closerId === tieWinnerId).length;
-        const completed: Session = {
-          ...updatedSession, status: "completed", endedAt: Date.now(), winnerId: tieWinnerId,
-        };
-        await putSession(completed);
-        await writeStats(completed, [...rounds, round]);
-        soundWinner();
-        navigator.vibrate?.([100, 50, 100, 50, 300]);
-        set((s) => ({
-          activeSession: completed,
-          ui: { ...s.ui, overlay: { type: "winner", winnerId: tieWinnerId, summary: { rounds: rounds.length + 1, closes, final } } },
-        }));
-        return;
-      }
-
-      if (survivors.length === 1) {
-        const winnerId = survivors[0];
-
-        const final = totals[winnerId] || 0;
-
-        const closes = [...rounds, round]
-          .filter((r) => r.closerId === winnerId)
-          .length;
-
-        const summary = {
-          rounds: rounds.length + 1,
-          closes,
-          final,
-        };
-
-        const completed: Session = {
-          ...updatedSession,
-          status: "completed",
-          endedAt: Date.now(),
-          winnerId,
-        };
-
-        await putSession(completed);
-        await writeStats(completed, [...rounds, round]);
-
-        soundWinner();
-        navigator.vibrate?.([100, 50, 100, 50, 300]);
-
-        set((s) => ({
-          activeSession: completed,
-          ui: {
-            ...s.ui,
-            overlay: {
-              type: "winner",
-              winnerId,
-              summary,
-            },
-          },
-        }));
-
-        return;
-      }
-
-      // Normal round — no elimination, no winner
-      soundConfirm();
-      // Threshold haptics: critical takes priority over warning
-      const crossedCritical = activeSession.playerIds.some(
-        (pid) => prevTotals[pid] < 85 && totals[pid] >= 85 && totals[pid] < 100
+      const { outcome, justEliminated } = resolveRoundOutcome(
+        activeSession.playerIds, prevTotals, totals, survivors
       );
-      const crossedWarning = !crossedCritical && activeSession.playerIds.some(
-        (pid) => prevTotals[pid] < 70 && totals[pid] >= 70 && totals[pid] < 85
-      );
-      if (crossedCritical) navigator.vibrate?.([50, 30, 50, 30, 50]);
-      else if (crossedWarning) navigator.vibrate?.([30, 20, 30]);
+
+      switch (outcome) {
+        case "elimination": {
+          soundElimination();
+          navigator.vibrate?.([200, 100, 200]);
+          const pmap = await getPlayers();
+          const first = justEliminated[0];
+          const name = pmap.find((p) => p.id === first)?.name || "Player";
+          set((s) => ({ ui: { ...s.ui, overlay: { type: "eliminated", name, total: totals[first] } } }));
+          break;
+        }
+        case "allOut": {
+          const lowestTotal = Math.min(...activeSession.playerIds.map((pid) => totals[pid]));
+          const lowestPlayers = activeSession.playerIds.filter((pid) => totals[pid] === lowestTotal);
+          const tieWinnerId = lowestPlayers.includes(closerId) ? closerId : lowestPlayers[0];
+          const final = totals[tieWinnerId] || 0;
+          const closes = allRounds.filter((r) => r.closerId === tieWinnerId).length;
+          const completed: Session = { ...updatedSession, status: "completed", endedAt: Date.now(), winnerId: tieWinnerId };
+          await putSession(completed);
+          await writeStats(completed, allRounds);
+          soundWinner();
+          navigator.vibrate?.([100, 50, 100, 50, 300]);
+          set((s) => ({
+            activeSession: completed,
+            ui: { ...s.ui, overlay: { type: "winner", winnerId: tieWinnerId, summary: { rounds: allRounds.length, closes, final } } },
+          }));
+          break;
+        }
+        case "winner": {
+          const winnerId = survivors[0];
+          const final = totals[winnerId] || 0;
+          const closes = allRounds.filter((r) => r.closerId === winnerId).length;
+          const completed: Session = { ...updatedSession, status: "completed", endedAt: Date.now(), winnerId };
+          await putSession(completed);
+          await writeStats(completed, allRounds);
+          soundWinner();
+          navigator.vibrate?.([100, 50, 100, 50, 300]);
+          set((s) => ({
+            activeSession: completed,
+            ui: { ...s.ui, overlay: { type: "winner", winnerId, summary: { rounds: allRounds.length, closes, final } } },
+          }));
+          break;
+        }
+        case "normal": {
+          soundConfirm();
+          const crossedCritical = activeSession.playerIds.some(
+            (pid) => prevTotals[pid] < 85 && totals[pid] >= 85 && totals[pid] < 100
+          );
+          const crossedWarning = !crossedCritical && activeSession.playerIds.some(
+            (pid) => prevTotals[pid] < 70 && totals[pid] >= 70 && totals[pid] < 85
+          );
+          if (crossedCritical) navigator.vibrate?.([50, 30, 50, 30, 50]);
+          else if (crossedWarning) navigator.vibrate?.([30, 20, 30]);
+          break;
+        }
+      }
     },
 
     async undoLastRound() {

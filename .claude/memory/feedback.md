@@ -50,3 +50,7 @@ How to apply: When there is nothing to save to memory, produce no output at all.
 **Rule: Even within an approved task, implement-first is still wrong.**
 Why: Kush said "Don't repeat your mistakes!" when I fixed the share card flexbox bug without explicit approval, even though fixing the share card was in the original session task list. The approval covers the outcome, not every intermediate implementation decision.
 How to apply: When discovering a sub-bug or root cause mid-task, describe the finding and proposed fix first. Wait for acknowledgement before touching code. "The task is approved" ≠ "every micro-decision within it is approved."
+
+**Rule: Always respond in formal English — never Hindi.**
+Why: User explicitly corrected Hindi response mid-session with "I have asked you to only reply in English formally, Why hindi?"
+How to apply: All assistant replies must be in formal English. App UI strings (e.g. "Yeh naam pehle se hai!") may remain in Hindi as they are product copy, not assistant communication.

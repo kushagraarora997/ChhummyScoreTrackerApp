@@ -2,11 +2,16 @@ import FullOverlay from "../FullOverlay";
 import { useAppStore } from "../../store/useAppStore";
 
 export default function WhoClosed() {
-  const store = useAppStore();
-  const session = store.activeSession!;
-  const players = store.players.filter((p) => session.playerIds.includes(p.id));
-  const totals = store.getTotals();
-  const roundNumber = store.rounds.length + 1;
+  const session = useAppStore((s) => s.activeSession)!;
+  const allPlayers = useAppStore((s) => s.players);
+  const rounds = useAppStore((s) => s.rounds);
+  const getTotals = useAppStore((s) => s.getTotals);
+  const chooseCloser = useAppStore((s) => s.chooseCloser);
+  const closeOverlay = useAppStore((s) => s.closeOverlay);
+
+  const players = allPlayers.filter((p) => session.playerIds.includes(p.id));
+  const totals = getTotals();
+  const roundNumber = rounds.length + 1;
 
   return (
     <FullOverlay title="Kaun Jeeta Be? 👑">
@@ -21,7 +26,7 @@ export default function WhoClosed() {
             <button
               key={p.id}
               disabled={eliminated}
-              onClick={() => { if (!eliminated) { navigator.vibrate?.(20); store.chooseCloser(p.id); } }}
+              onClick={() => { if (!eliminated) { navigator.vibrate?.(20); chooseCloser(p.id); } }}
               className={`
                 h-32 rounded-2xl transition relative overflow-hidden
                 flex flex-col items-center justify-center gap-1.5
@@ -67,7 +72,7 @@ export default function WhoClosed() {
       </div>
 
       <button
-        onClick={store.closeOverlay}
+        onClick={closeOverlay}
         className="mt-3 w-full py-3 rounded-2xl bg-card border border-white/10 text-sm opacity-60"
       >
         ← Cancel

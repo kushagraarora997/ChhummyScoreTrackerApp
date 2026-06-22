@@ -315,119 +315,180 @@ Sab files padhe. Neeche sab naya kaam.
 
 ---
 
-## Cross-Device Sync — Modular Plan
+## Cross-Device Sync — Spring Boot + PostgreSQL + WebSocket
 
-**Stack: Supabase** (PostgreSQL + Realtime + anonymous auth)
-**Auth model: Family Room Code** — 6-char alphanumeric code. Anyone who enters the same code reads/writes the same cloud data. No email, no password.
-**Offline-first:** Dexie stays as the local cache. Cloud is secondary. App still works 100% without internet.
-
----
-
-### Module 1 — Supabase Project Setup
-*One-time infra work. No code changes yet.*
-
-- [ ] Create Supabase project at supabase.com (free tier)
-- [ ] Mirror Dexie schema in PostgreSQL:
-  - `players` table: `id text PK, name text, emoji text, created_at bigint, last_used_at bigint, family_id text`
-  - `sessions` table: `id text PK, family_id text, started_at bigint, ended_at bigint, player_ids text[], dealer_index int, winner_id text, last_round_id text, status text`
-  - `rounds` table: `id text PK, session_id text, family_id text, number int, closer_id text, scores jsonb, totals jsonb, created_at bigint`
-  - `stats` table: `id text PK, family_id text, totals jsonb`
-  - `achievements` table: `id text PK, family_id text, player_id text, key text, session_id text, created_at bigint`
-- [ ] Add RLS policies: all rows filtered by `family_id` column (users only see their family's data)
-- [ ] Enable Supabase Realtime on `rounds` and `sessions` tables
-- [ ] Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to `.env.local` (gitignored)
-- [ ] Generate TypeScript types from Supabase schema (`npx supabase gen types typescript`)
+**Stack: Spring Boot 3 + PostgreSQL + WebSocket (STOMP)**
+**Why:** Kush is a Java backend engineer. This demonstrates Java skills directly on his resume.
+**Auth model: Family Room Code** — 6-char alphanumeric (e.g. "ARORA1"). Anyone with the same code reads/writes the same data. No email, no OAuth.
+**Offline-first:** Dexie stays as the local primary. Spring Boot is the cloud layer. App works 100% without internet.
+**Deployment:** Railway (free tier, Java-friendly, auto-deploys from GitHub).
 
 ---
 
-### Module 2 — Supabase Client
-*New file: `src/lib/supabase.ts`*
+### Pre-work: Architecture Refactor (do this BEFORE backend)
 
-- [ ] Install `@supabase/supabase-js`
-- [ ] Create `src/lib/supabase.ts` — singleton client: `createClient(url, anonKey)`
-- [ ] Export typed DB helper: `SupabaseClient<Database>` using generated types
-- [ ] Add `src/lib/sync.ts` — utility functions wrapping Supabase calls (mirrors db/operations.ts pattern)
+- [x] **[DONE] Split `confirmRound()` — extract `resolveRoundOutcome()`** — Done 2026-06-22. Module-level pure function in `useAppStore.ts`. Returns `{ outcome, justEliminated }`. `confirmRound()` switches on outcome via switch statement.
 
----
+- [x] **[DONE] Move `writeStats()` to `src/db/operations.ts`** — Done 2026-06-22. Exported from operations.ts, imported by useAppStore.ts. Unused types (Stats, Achievement) and DB helpers removed from store imports.
 
-### Module 3 — Family Room / Identity
-*New screen or Home modal. No game logic changes.*
-
-- [ ] Design: "Family Room Code" UX on Home screen
-  - If no code set: show "🔗 Sync with Family" banner/button → bottom sheet with 6-char input
-  - If code set: show small green "☁️ Synced" pill on Home, tappable to see room code / disconnect
-  - Generate new code: random 6-char (e.g. "ARORA1") or user-typed
-  - Store code in `localStorage` as `familyId`
-- [ ] `useSyncStore.ts` (new Zustand slice or added to useAppStore):
-  - State: `familyId: string | null`, `syncStatus: "idle" | "syncing" | "online" | "offline" | "error"`
-  - Actions: `joinRoom(code)`, `leaveRoom()`, `setSyncStatus()`
-- [ ] On `joinRoom()`: sign in anonymously via Supabase auth (`supabase.auth.signInAnonymously()`), set `familyId` as user metadata
-- [ ] On app init (`init()`): if `familyId` in localStorage → auto-reconnect to Supabase
+- [x] **[DONE] Zustand selectors in high-churn components** — Done 2026-06-22. `LiveGame`, `EnterScores`, `WhoClosed` all use per-field selectors (`useAppStore(s => s.x)`). No more whole-store subscriptions in these components.
 
 ---
 
-### Module 4 — Cloud Write Layer
-*Wrap db/operations.ts to dual-write: Dexie first, Supabase async.*
+### Module 1 — Spring Boot Project Setup
+*Backend project, separate repo or `backend/` subfolder.*
 
-- [ ] Strategy: write to Dexie synchronously (current behavior preserved), then fire Supabase upsert in background (non-blocking)
-- [ ] Add `familyId` to all Supabase writes
-- [ ] Wrap these operations with cloud writes:
-  - `addPlayer` → `supabase.from("players").upsert(...)`
-  - `updatePlayer` → `supabase.from("players").upsert(...)`
-  - `deletePlayer` → `supabase.from("players").delete().eq("id", id)`
-  - `addSession` → `supabase.from("sessions").upsert(...)`
-  - `putSession` → `supabase.from("sessions").upsert(...)`
-  - `addRound` → `supabase.from("rounds").upsert(...)`
-  - `putStats` → `supabase.from("stats").upsert(...)`
-  - `addAchievement` → `supabase.from("achievements").upsert(...)`
-- [ ] If `familyId` is null → skip cloud write (offline-only mode, same as today)
-- [ ] Log cloud write errors to console only (don't block UI or show alerts)
+- [ ] Generate project at start.spring.io:
+  - Dependencies: `spring-boot-starter-web`, `spring-boot-starter-websocket`, `spring-boot-starter-data-jpa`, `postgresql`, `spring-boot-starter-security`, `lombok`
+  - Java 21, Maven
+- [ ] `application.yml`:
+  - `spring.datasource.url` from env (`${DB_URL}`)
+  - `spring.jpa.hibernate.ddl-auto: validate` (use Flyway/Liquibase for migrations)
+  - CORS config: allow `http://localhost:5173` + Vercel domain
+- [ ] WebSocket config: `@EnableWebSocketMessageBroker`, in-memory broker, STOMP endpoint at `/ws`
+- [ ] Flyway migration: `V1__initial_schema.sql` with all 6 tables
 
 ---
 
-### Module 5 — Real-time Round Subscription
-*The killer feature: everyone's phone updates live during a game.*
+### Module 2 — PostgreSQL Schema
+*Mirrors Dexie schema, lifted to relational.*
 
-- [ ] In `useAppStore.init()` or `newSession()`: if `familyId` set, subscribe to Supabase Realtime on `rounds` table filtered by `session_id`
-- [ ] On `INSERT` event for a round not in local `rounds[]`: add round to Dexie + update Zustand store (triggers re-render on all connected devices)
-- [ ] On `session` row update (e.g. `status: "completed"`, `winner_id` set): update local `activeSession` and trigger winner overlay
-- [ ] Unsubscribe on `abandonSession()` / `declareWinner()` / app unload
-- [ ] Handle edge case: device that entered the round gets the INSERT event too — deduplicate by checking if `round.id` already in `store.rounds`
-- [ ] Manage subscription lifecycle: reconnect on `visibilitychange` (already handled elsewhere)
+- [ ] `families` — `id TEXT PK, room_code TEXT UNIQUE, created_at BIGINT`
+- [ ] `players` — `id TEXT PK, family_id TEXT FK, name TEXT, emoji TEXT, permanent BOOLEAN, created_at BIGINT, last_used_at BIGINT`
+- [ ] `sessions` — `id TEXT PK, family_id TEXT FK, started_at BIGINT, ended_at BIGINT, player_ids JSONB, dealer_index INT, winner_id TEXT, status TEXT`
+- [ ] `rounds` — `id TEXT PK, session_id TEXT FK, family_id TEXT FK, number INT, closer_id TEXT, scores JSONB, totals JSONB, created_at BIGINT`
+- [ ] `stats` — `family_id TEXT PK FK, totals JSONB`
+- [ ] `achievements` — `id TEXT PK, family_id TEXT FK, session_id TEXT, player_id TEXT, key TEXT, created_at BIGINT`
+- [ ] JPA `@Entity` classes for each table + `JpaRepository` interfaces
 
 ---
 
-### Module 6 — Initial Sync / Data Pull
-*First time a device joins an existing room.*
+### Module 3 — REST API Layer
+*Standard Spring Boot controllers.*
 
-- [ ] On `joinRoom(code)`: pull all existing Supabase data for that `familyId` into Dexie
-  - Fetch all `players`, `sessions`, `rounds`, `stats`, `achievements` where `family_id = code`
-  - Upsert into Dexie (by `id`, so no duplicates)
-  - Call `store.init()` after to reload UI from merged local data
-- [ ] Conflict strategy: Supabase wins for any row that exists in both (last-write-wins via upsert)
+- [ ] `FamilyController`:
+  - `POST /api/families/join` — body: `{ roomCode }` → upserts family row, returns `{ familyId }`
+- [ ] `PlayerController` — base: `/api/families/{familyId}/players`
+  - `GET /` → list all players for family
+  - `POST /` → add player
+  - `PUT /{id}` → rename / change emoji
+  - `DELETE /{id}` → delete player
+- [ ] `SessionController` — base: `/api/families/{familyId}/sessions`
+  - `GET /` → list all sessions (desc by startedAt)
+  - `GET /active` → get current active session
+  - `POST /` → create new session
+  - `PUT /{id}` → update session (status, winner, endedAt)
+- [ ] `RoundController` — base: `/api/sessions/{sessionId}/rounds`
+  - `GET /` → list all rounds for session
+  - `POST /` → add round (triggers WebSocket broadcast)
+  - `DELETE /{id}` → undo (delete last round)
+- [ ] `StatsController` — base: `/api/families/{familyId}/stats`
+  - `GET /` → get stats row
+  - `PUT /` → upsert stats + achievements on game end
+
+---
+
+### Module 4 — Spring Security / Room Code Auth
+*Simple custom filter — no OAuth, no JWTs, no user accounts.*
+
+- [ ] Custom `RoomCodeAuthFilter extends OncePerRequestFilter`:
+  - Reads `X-Room-Code` header from every request
+  - Looks up family by room code in DB
+  - If found: injects `familyId` into `SecurityContext`
+  - If not found: returns 401
+- [ ] `SecurityFilterChain`: `/api/**` requires auth via this filter; `/ws/**` and `/actuator/health` are public
+- [ ] `familyId` extracted from `SecurityContext` in all controllers (no need to pass in URL)
+
+---
+
+### Module 5 — WebSocket / STOMP Real-time
+*The headline feature: all phones update live mid-game.*
+
+- [ ] `@EnableWebSocketMessageBroker` config:
+  - STOMP endpoint: `/ws` (SockJS fallback enabled)
+  - Application destination prefix: `/app`
+  - Broker destination prefix: `/topic`
+- [ ] `RoundController.addRound()` after saving to DB:
+  ```java
+  simpMessagingTemplate.convertAndSend(
+    "/topic/family/" + familyId + "/rounds", savedRound
+  );
+  ```
+- [ ] `SessionController.updateSession()` broadcasts to `/topic/family/{familyId}/sessions` when status changes
+- [ ] Destinations:
+  - `/topic/family/{familyId}/rounds` — new round (all devices update leaderboard)
+  - `/topic/family/{familyId}/sessions` — session state change (winner declared, abandoned)
+
+---
+
+### Module 6 — React Integration
+*Client-side SDK: Axios + STOMP.*
+
+- [ ] Install `axios`, `@stomp/stompjs`, `sockjs-client`
+- [ ] `src/lib/api.ts` — Axios instance:
+  - `baseURL: import.meta.env.VITE_API_URL`
+  - Request interceptor: attaches `X-Room-Code` header from localStorage
+- [ ] `src/lib/ws.ts` — STOMP client:
+  - `connectWs(familyId)` → creates `Client`, connects to `/ws`, subscribes to `/topic/family/{familyId}/rounds` and `/topic/family/{familyId}/sessions`
+  - `disconnectWs()` → deactivates client
+  - Callbacks passed in by caller (round received → update store)
+- [ ] Room code UX on Home:
+  - If no code: "🔗 Sync with Family" banner → bottom sheet, 6-char input
+  - If code set: green "☁️ ARORA1" pill → tappable to see code / leave room
+  - `familyId` in `localStorage`
+
+---
+
+### Module 7 — Dual-Write Layer
+*Dexie-first, Spring Boot async.*
+
+- [ ] After each local Dexie write in `operations.ts`, fire the corresponding Axios call non-blocking:
+  - `addPlayer` → `api.post('/families/{familyId}/players', player)`
+  - `addRound` → `api.post('/sessions/{sessionId}/rounds', round)`
+  - `putSession` → `api.put('/families/{familyId}/sessions/{id}', session)`
+  - `putStats` → `api.put('/families/{familyId}/stats', stats)`
+  - etc.
+- [ ] If `familyId` is null → skip all cloud writes (offline-only, current behavior preserved)
+- [ ] Errors: `.catch(e => console.warn('sync error', e))` only — never block UI
+
+---
+
+### Module 8 — Initial Sync / Pull on Join
+*First time a new device enters the room.*
+
+- [ ] On `joinRoom(code)`:
+  1. `POST /api/families/join` → get `familyId`
+  2. `GET /api/families/{familyId}/players` → upsert all into Dexie
+  3. `GET /api/families/{familyId}/sessions` → upsert all into Dexie
+  4. For each session: `GET /api/sessions/{id}/rounds` → upsert rounds
+  5. `GET /api/families/{familyId}/stats` → upsert into Dexie
+  6. Call `store.init()` → UI reloads from merged local data
 - [ ] First-time push (new room, existing local data):
-  - On `joinRoom()` when Supabase has no data for that `familyId`: push all local Dexie rows to Supabase
-  - This migrates existing game history to the cloud on first connect
+  - If API returns empty family (no players/sessions) → push all local Dexie rows up via POST
 
 ---
 
-### Module 7 — Offline Queue (deferred)
-*Nice-to-have. Do this after Modules 1–6 are stable.*
+### Module 9 — Offline Queue (deferred)
+*After Modules 1–8 are stable.*
 
-- [ ] Add `syncQueue` table to Dexie: `{ id, table, operation, payload, createdAt }`
-- [ ] When Supabase write fails (offline / error): write to `syncQueue` instead
-- [ ] On `visibilitychange` / `online` event: flush `syncQueue` to Supabase in order
-- [ ] Clear flushed entries from `syncQueue`
+- [ ] Add `syncQueue` table to Dexie: `{ id, endpoint, method, payload, createdAt }`
+- [ ] When Axios call fails: write to `syncQueue`
+- [ ] On `online` event / `visibilitychange`: flush `syncQueue` in order
+- [ ] Clear flushed entries
 
 ---
 
-### Module 8 — UI / Sync Indicators
-*Polish pass after core sync is working.*
+### Module 10 — Deployment (Railway)
+*Get the backend live.*
 
-- [ ] Sync status pill on Home: `☁️ Synced` (green) / `⏳ Syncing...` (amber) / `📵 Offline` (gray)
-- [ ] Room code shown in pill on tap: "Room: ARORA1 • Leave"
-- [ ] Live game: small "🟢 Live" badge when Realtime subscription is active (others can see this game)
-- [ ] "Join Live Game" flow: if device joins a room mid-game, it fetches the active session and jumps into the live game screen
+- [ ] Create Railway project → add PostgreSQL plugin (free tier)
+- [ ] Link GitHub repo → Railway auto-deploys on push to main
+- [ ] Set environment variables in Railway:
+  - `DB_URL`, `DB_USER`, `DB_PASS` (from Railway PostgreSQL plugin)
+  - `ALLOWED_ORIGINS` = `https://<vercel-domain>.vercel.app`
+- [ ] Add `VITE_API_URL=https://<railway-app>.up.railway.app` to Vercel env vars
+- [ ] Verify health: `GET /actuator/health` returns `{ "status": "UP" }`
+- [ ] Update `CLAUDE.md` with backend project path and Railway URL
 
 ---
 

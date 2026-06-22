@@ -9,22 +9,32 @@ import PauseOverlay from "../components/overlays/PauseOverlay";
 import PlayerHistorySheet from "../components/overlays/PlayerHistorySheet";
 
 export default function LiveGame({ onExit }: { onExit: () => void }) {
-  const store = useAppStore();
-  const session = store.activeSession;
-  const rounds = store.rounds;
-  const totals = useMemo(() => store.getTotals(), [rounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const session = useAppStore((s) => s.activeSession);
+  const rounds = useAppStore((s) => s.rounds);
+  const allPlayers = useAppStore((s) => s.players);
+  const overlay = useAppStore((s) => s.ui.overlay);
+  const lastUndoneRound = useAppStore((s) => s.lastUndoneRound);
+  const getTotals = useAppStore((s) => s.getTotals);
+  const pause = useAppStore((s) => s.pause);
+  const endRoundStart = useAppStore((s) => s.endRoundStart);
+  const undoLastRound = useAppStore((s) => s.undoLastRound);
+  const redoLastRound = useAppStore((s) => s.redoLastRound);
+  const clearRedo = useAppStore((s) => s.clearRedo);
+  const declareWinner = useAppStore((s) => s.declareWinner);
+
+  const totals = useMemo(() => getTotals(), [rounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [redoConfirm, setRedoConfirm] = useState(false);
   const [historyPlayerId, setHistoryPlayerId] = useState<string | null>(null);
 
   const players = useMemo(() => {
-    const map = new Map(store.players.map((p) => [p.id, p]));
+    const map = new Map(allPlayers.map((p) => [p.id, p]));
     return (
       session?.playerIds.map(
         (id) => map.get(id) ?? { id, name: "Player", emoji: "🙂" }
       ) ?? []
     );
-  }, [session, store.players]);
+  }, [session, allPlayers]);
 
   if (!session) {
     return (
@@ -58,14 +68,14 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
   };
 
   const closerId =
-    store.ui.overlay.type === "enterScores" ? store.ui.overlay.closerId : undefined;
+    overlay.type === "enterScores" ? overlay.closerId : undefined;
 
   return (
     <div className="min-h-screen bg-background text-text p-4 pb-28 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={store.pause}
+          onClick={pause}
           className="px-3 py-2 rounded-xl bg-card border border-white/10"
         >
           ⏸ Pause
@@ -99,7 +109,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         </div>
       </div>
 
-      {rounds.length > 0 && store.ui.overlay.type === "none" && (
+      {rounds.length > 0 && overlay.type === "none" && (
         <div className="text-center text-[10px] opacity-25 tracking-wide mb-1">
           Tap any card to see round history
         </div>
@@ -110,7 +120,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
           <span className="text-sm opacity-80">Undo Round {rounds.length}?</span>
           <div className="flex gap-2">
             <button
-              onClick={() => { navigator.vibrate?.(15); store.undoLastRound(); setUndoConfirm(false); setRedoConfirm(false); }}
+              onClick={() => { navigator.vibrate?.(15); undoLastRound(); setUndoConfirm(false); setRedoConfirm(false); }}
               className="px-3 py-1 rounded-lg bg-danger text-white text-sm font-semibold"
             >
               Yes
@@ -125,20 +135,20 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         </div>
       )}
 
-      {!undoConfirm && store.lastUndoneRound && (
+      {!undoConfirm && lastUndoneRound && (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-card border border-amber-500/20 px-3 py-2">
           {redoConfirm ? (
             <>
-              <span className="text-sm opacity-80">Redo Round {store.lastUndoneRound.number}?</span>
+              <span className="text-sm opacity-80">Redo Round {lastUndoneRound.number}?</span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => { store.redoLastRound(); setRedoConfirm(false); }}
+                  onClick={() => { redoLastRound(); setRedoConfirm(false); }}
                   className="px-3 py-1 rounded-lg bg-success text-black text-sm font-semibold"
                 >
                   Yes
                 </button>
                 <button
-                  onClick={() => { store.clearRedo(); setRedoConfirm(false); }}
+                  onClick={() => { clearRedo(); setRedoConfirm(false); }}
                   className="px-3 py-1 rounded-lg bg-elevated text-sm"
                 >
                   No
@@ -159,7 +169,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         </div>
       )}
 
-      {/* Player Cards — flex-1 so they fill available space and center vertically */}
+      {/* Player Cards */}
       <div className="flex-1 flex flex-col justify-center gap-3 mt-4">
         {sorted.map((p) => {
           const total = totals[p.id] || 0;
@@ -171,7 +181,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
             <motion.div
               layout
               key={p.id}
-              onClick={() => { if (rounds.length > 0 && store.ui.overlay.type === "none") setHistoryPlayerId(p.id); }}
+              onClick={() => { if (rounds.length > 0 && overlay.type === "none") setHistoryPlayerId(p.id); }}
               className={`cursor-pointer active:scale-[0.98] transition-transform
                 p-4 rounded-2xl border
                 ${state === "eliminated" ? "bg-[#1a0b0b] border-danger/30 opacity-60"
@@ -244,14 +254,14 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
 
         {survivors.length === 1 ? (
           <button
-            onClick={() => store.declareWinner(survivors[0].id)}
+            onClick={() => declareWinner(survivors[0].id)}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-black text-lg font-bold shadow-amber active:scale-[0.98] transition flex items-center justify-center gap-2"
           >
             🏆 End Game — {survivors[0].name} Wins!
           </button>
         ) : (
           <button
-            onClick={store.endRoundStart}
+            onClick={endRoundStart}
             className="w-full py-4 rounded-2xl bg-success text-black text-lg font-bold shadow-green active:scale-[0.98] transition flex items-center justify-center gap-2"
           >
             🎯 End Round #{roundNumber}

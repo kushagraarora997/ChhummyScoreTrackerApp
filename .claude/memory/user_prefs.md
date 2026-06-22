@@ -1,11 +1,15 @@
 ---
 name: user-prefs
-description: How Kush communicates, approval flow, response style preferences
-metadata:
+description: "How Kush communicates, approval flow, response style preferences"
+metadata: 
+  node_type: memory
   type: user
+  originSessionId: 03a24291-4589-4a87-9cd3-a3a1b0099e16
 ---
 
 **Name:** Kush (kushagraarora997@gmail.com). Android user. Family includes parents + sister.
+
+**Professional background:** Java backend engineer. Wants this project on his resume — technical choices must reflect and showcase Java/backend skills. Not a frontend-first engineer; evaluate all decisions through "what does this look like to a Java backend interviewer."
 
 **Communication style:** Direct. Efficient. No fluff.
 — No "Great question!", no unnecessary summaries, no padding.

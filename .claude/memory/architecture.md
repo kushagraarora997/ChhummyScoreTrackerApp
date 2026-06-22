@@ -33,18 +33,17 @@ metadata:
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
-**DB operations layer (added 2026-06-21):**
-- `src/db/operations.ts` — 16 named functions wrapping all Dexie calls: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement` (adds nanoid internally)
-- `useAppStore.ts` now imports from `../db/operations` — zero `db.*` calls remain in the store
-- `Achievement` type is still imported from `../db` in the store (used for `Omit<Achievement, "id">[]` local array in `writeStats`)
-- **Pages NOT migrated yet** — `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` still call `db.*` directly. Follow-up work if full consistency is wanted.
+**DB operations layer (fully migrated 2026-06-22):**
+- `src/db/operations.ts` — 18 named functions wrapping all Dexie calls: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement` (adds nanoid internally)
+- `useAppStore.ts` imports from `../db/operations` — zero `db.*` calls in the store
+- `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` all migrated — zero `db.*` calls in any page
+- `updatePlayer(id, Partial<Player>)` and `deletePlayer(id)` added 2026-06-22 for player management feature
 
-**Remaining structural debt (as of 2026-06-22 review):**
-1. **`confirmRound()` is 170+ lines** — builds round, writes DB, updates session, decides elimination/winner/tie-breaker, triggers overlays, fires haptics+sounds. Six responsibilities in one function. Risky to touch without care.
-2. **Whole-store subscription pattern** — `const store = useAppStore()` in LiveGame, EnterScores, WhoClosed etc. subscribes to entire store; any state change re-renders all. Should use selectors (`useAppStore(s => s.players)`). Not visible at this scale but is correctness debt.
-3. **`writeStats` still in `useAppStore.ts`** — module-level function, not part of the store. Natural home is `src/db/operations.ts` or `src/utils/stats.ts`.
-4. No lazy loading — all pages imported eagerly (acceptable for this app size).
-5. Pages still use `db.*` directly (see DB operations layer note above).
+**Remaining structural debt (as of 2026-06-22):**
+1. **`confirmRound()` is 170+ lines** — six responsibilities. Risky to touch.
+2. **Whole-store Zustand subscription** — `const store = useAppStore()` re-renders on ANY state change. Should use selectors. Not visible at this scale.
+3. **`writeStats` still in `useAppStore.ts`** — module-level function, natural home is operations.ts.
+4. No lazy loading — all pages imported eagerly (fine at this size).
 
 **Minor code observations (2026-06-22):**
 - `App.tsx:35` background gradient uses `from-[#050816]` (blue-tinted), not design system's `#050505`. Barely visible.
@@ -85,6 +84,14 @@ metadata:
 - `await db.sessions.put(...)` FIRST, then `set({ activeSession: undefined, ... })`
 - Reason: if `set()` fires before the await, Zustand's `useSyncExternalStore` triggers a synchronous re-render of LiveGame while route is still "live" (React batch hasn't processed `setRoute("home")` yet), showing the "No active session." fallback
 - The race condition this was "fixing" doesn't exist in practice — the 1200ms gap before `newSession()` is called is far longer than the ~20ms DB write
+
+**Multi-player test suite (2026-06-22):**
+- Test file: `C:\Users\kusha\AppData\Local\Temp\pw-test\multi-player-tests.mjs`
+- 53 tests, 0 failures. Covers 2P/3P/4P/5P/6P complete games + all-out edge case
+- Run: `node multi-player-tests.mjs` from pw-test dir (dev server must be on port 5176)
+- Key Playwright gotcha discovered: `body.textContent()` concatenates adjacent text nodes — "Round 1" + "2 alive" = "12 alive". Use `page.getByText(/\d+ alive/).first()` to scope to the specific element
+- Numpad has 60-cap enforced in JS — cannot test scores > 60 via numpad. Build up high totals over multiple rounds using ≤60 per round
+- Tests verify: 101 threshold, no elim modal for 2P, elim modal for 3P+, Continue flow, critical-but-alive (85-100), all-out tiebreaker (closer wins)
 
 **Playwright E2E screenshot tour (2026-06-21):**
 - Test at `C:\Users\kusha\AppData\Local\Temp\pw-test\screenshot-tour.mjs` — generates 33 screenshots
@@ -142,9 +149,34 @@ metadata:
 - Changed from `>= 100` to `> 100` across ALL files — 100 is now safe, 101+ = eliminated
 - Files changed: useAppStore.ts (survivors filter, justEliminated filter, writeStats elim check), LiveGame.tsx (cardState, survivors, sorted), EnterScores.tsx (players filter, running total 💀 preview), WhoClosed.tsx (eliminated check), PauseOverlay.tsx (ranked sort + hidden card elim), WinnerView.tsx (isElim ×2), PlayerHistorySheet.tsx (dangerTotal), StatsPage.tsx (elim in history), CLAUDE.md game rules
 
-**Known open bugs (as of 2026-06-22 self-audit):**
-- `newSession()` does NOT abandon the existing active session in DB before creating a new one. If user taps "Start New Game" on Home while an active session exists (without going through Pause → End Game), two sessions with `status: "active"` exist in DB. On reload, `getActiveSession()` returns whichever nanoid sorts first — wrong session may resume. Fix: in `newSession()`, check `get().activeSession` and if it's active, `putSession({ ...existing, status: "abandoned", endedAt: Date.now() })` before `addSession(new)`.
-- PlayerHistorySheet has no discovery hint — cards have `cursor-pointer` but users have no reason to know tapping a card opens history. Proposed fix: subtle "Tap card for history ↓" text below round number when rounds > 0.
+**Known open bugs (as of 2026-06-22, post fix pass):**
+- None. All review findings fixed in commit `231d94c`.
+
+**Fixed in commit 231d94c (2026-06-22):**
+- PATSY threshold: `>= 100` → `> 100` — player at exactly 100pts no longer falsely earns PATSY
+- EnterScores player order: now maps `session.playerIds` → `playerMap.get(id)` so score sections always follow session order, not random IndexedDB order
+- `devtools` middleware: `{ enabled: import.meta.env.DEV }` — disabled in production build
+- `getTotals()` in LiveGame: wrapped in `useMemo([rounds])` — only recomputes when rounds array changes
+
+**Remaining structural debt (as of 2026-06-22) — planned as pre-work before Spring Boot integration:**
+1. **`confirmRound()` is 170+ lines** — Extract `resolveRoundOutcome(totals, survivors, closerId)` → returns `"normal" | "elimination" | "winner" | "allOut"`. `confirmRound()` calls it and switches on result. MUST do before adding HTTP + WebSocket calls to confirmRound.
+2. **`writeStats()` must move to `src/db/operations.ts`** — currently module-level in store. Will need `syncStatsToCloud()` counterpart; cleaner if both live in operations.
+3. **Whole-store Zustand subscription** — `const store = useAppStore()` re-renders on ANY state change. Replace with selectors (`useAppStore(s => s.players)`) in LiveGame, EnterScores, WhoClosed before WebSocket events start driving frequent updates.
+4. **No error boundary** — IndexedDB errors (quota, corruption) silently crash the store; add try/catch in `confirmRound()` at minimum.
+5. **`getPlayers()` redundant call in `newSession()`** — intentional (needed to pick up player edits from PlayerSetup local state), but could be avoided if PlayerSetup updated the Zustand store on edit.
+6. No lazy loading — all pages imported eagerly (fine at this size).
+
+**Undo/Redo analysis (2026-06-22):**
+- Undo to round 0 → guarded, dealer resets to 0. ✓
+- Multiple undos → only last undo is redoable (single-level redo). Acceptable.
+- Undo after elimination overlay dismissed → accessible and works correctly. ✓
+- Undo/redo of winner rounds → NOT reachable in current UI (winner overlay covers LiveGame, only Back to Home or Rematch available). No fix needed.
+- `redoLastRound()` does not re-run outcome resolution — acceptable because redo of winner round is unreachable.
+
+**`newSession()` signature (updated batch-12):**
+- `newSession(playerIds: string[], dealerIndex = 0)` — optional second param for first dealer
+- Called from PlayerSetup with computed dealerIndex based on user's dealer chip selection
+- Called from Quick Rematch with no dealerIndex (defaults to 0)
 
 **Fixed bugs (do not re-introduce):**
 - `newSession()` reloads players from DB before setting state — fixes "Player" name bug
