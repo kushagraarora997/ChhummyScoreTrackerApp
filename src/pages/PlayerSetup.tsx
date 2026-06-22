@@ -23,9 +23,11 @@ export default function PlayerSetup({
   const [dealerPlayerId, setDealerPlayerId] = useState<string | null>(null);
   const [addModal, setAddModal] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [addError, setAddError] = useState("");
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmoji, setEditEmoji] = useState("");
+  const [editError, setEditError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const newSession = useAppStore((s) => s.newSession);
@@ -63,6 +65,10 @@ export default function PlayerSetup({
   const commitAdd = async () => {
     const name = draftName.trim();
     if (!name) return;
+    if (available.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      setAddError("Yeh naam pehle se hai!");
+      return;
+    }
     const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
     const player: Player = {
       id: nanoid(), name, emoji,
@@ -72,6 +78,7 @@ export default function PlayerSetup({
     setAvailable((prev) => [player, ...prev]);
     setSelected((prev) => [...prev, player].slice(0, 6));
     setDraftName("");
+    setAddError("");
     setAddModal(false);
   };
 
@@ -79,16 +86,22 @@ export default function PlayerSetup({
     setEditingPlayer(p);
     setEditName(p.name);
     setEditEmoji(p.emoji ?? "🙂");
+    setEditError("");
   }
 
   const commitEdit = async () => {
     if (!editingPlayer || !editName.trim()) return;
     const name = editName.trim();
+    if (available.some((p) => p.id !== editingPlayer.id && p.name.toLowerCase() === name.toLowerCase())) {
+      setEditError("Yeh naam pehle se hai!");
+      return;
+    }
     const emoji = editEmoji;
     await updatePlayer(editingPlayer.id, { name, emoji });
     const updated = { ...editingPlayer, name, emoji };
     setAvailable((prev) => prev.map((p) => p.id === editingPlayer.id ? updated : p));
     setSelected((prev) => prev.map((p) => p.id === editingPlayer.id ? updated : p));
+    setEditError("");
     setEditingPlayer(null);
   };
 
@@ -219,7 +232,7 @@ export default function PlayerSetup({
       {addModal && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
-          onClick={() => { setAddModal(false); setDraftName(""); }}
+          onClick={() => { setAddModal(false); setDraftName(""); setAddError(""); }}
         >
           <div
             className="w-full rounded-t-3xl bg-elevated border-t border-white/10 p-6 pb-10"
@@ -231,12 +244,17 @@ export default function PlayerSetup({
               ref={inputRef}
               type="text"
               value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
+              onChange={(e) => { setDraftName(e.target.value); setAddError(""); }}
               onKeyDown={(e) => e.key === "Enter" && commitAdd()}
               placeholder="Naam likhna yahan..."
               maxLength={20}
-              className="w-full py-4 px-4 rounded-2xl bg-card border border-white/10 text-lg placeholder:opacity-30 outline-none focus:border-success/60 transition"
+              className={`w-full py-4 px-4 rounded-2xl bg-card border text-lg placeholder:opacity-30 outline-none transition ${
+                addError ? "border-danger/60" : "border-white/10 focus:border-success/60"
+              }`}
             />
+            {addError && (
+              <div className="mt-2 text-sm text-danger text-center">{addError}</div>
+            )}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <button
                 onClick={() => { setAddModal(false); setDraftName(""); }}
@@ -262,7 +280,7 @@ export default function PlayerSetup({
       {editingPlayer && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end"
-          onClick={() => setEditingPlayer(null)}
+          onClick={() => { setEditingPlayer(null); setEditError(""); }}
         >
           <div
             className="w-full rounded-t-3xl bg-elevated border-t border-white/10 p-6 pb-10"
@@ -290,12 +308,17 @@ export default function PlayerSetup({
             <input
               type="text"
               value={editName}
-              onChange={(e) => setEditName(e.target.value)}
+              onChange={(e) => { setEditName(e.target.value); setEditError(""); }}
               onKeyDown={(e) => e.key === "Enter" && commitEdit()}
               maxLength={20}
               placeholder="Player name..."
-              className="w-full py-4 px-4 rounded-2xl bg-card border border-white/10 text-lg placeholder:opacity-30 outline-none focus:border-success/60 transition mb-4"
+              className={`w-full py-4 px-4 rounded-2xl bg-card border text-lg placeholder:opacity-30 outline-none transition ${
+                editError ? "border-danger/60 mb-2" : "border-white/10 focus:border-success/60 mb-4"
+              }`}
             />
+            {editError && (
+              <div className="mb-3 text-sm text-danger text-center">{editError}</div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <button
