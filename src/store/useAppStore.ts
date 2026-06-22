@@ -153,7 +153,7 @@ interface AppState {
   };
 
   init: () => Promise<void>;
-  newSession: (playerIds: string[]) => Promise<void>;
+  newSession: (playerIds: string[], dealerIndex?: number) => Promise<void>;
   endRoundStart: () => void;
   chooseCloser: (playerId: string) => void;
   confirmRound: () => Promise<void>;
@@ -197,7 +197,7 @@ export const useAppStore = create<AppState>()(
       });
     },
 
-    async newSession(playerIds) {
+    async newSession(playerIds, dealerIndex = 0) {
       const existing = get().activeSession;
       if (existing?.status === "active") {
         await putSession({ ...existing, status: "abandoned", endedAt: Date.now() });
@@ -207,7 +207,7 @@ export const useAppStore = create<AppState>()(
         id: nanoid(),
         startedAt: Date.now(),
         playerIds,
-        dealerIndex: 0,
+        dealerIndex,
         status: "active",
       };
 
@@ -342,6 +342,7 @@ export const useAppStore = create<AppState>()(
       set({
         rounds: [...rounds, round],
         activeSession: updatedSession,
+        lastUndoneRound: null,
         ui: {
           overlay: { type: "none" },
         },
@@ -474,8 +475,11 @@ export const useAppStore = create<AppState>()(
       const updated: Session = {
         ...activeSession,
         dealerIndex,
-        lastRoundId:
-          remain[remain.length - 1]?.id,
+        lastRoundId: remain[remain.length - 1]?.id,
+        // If undoing the game-ending round, revert session back to active
+        ...(activeSession.status === "completed"
+          ? { status: "active" as const, winnerId: undefined, endedAt: undefined }
+          : {}),
       };
 
       await putSession(updated);

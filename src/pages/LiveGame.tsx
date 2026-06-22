@@ -84,7 +84,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         <div className="text-4xl font-black tracking-tight">Round {roundNumber}</div>
         <div className="flex items-center justify-between mt-1.5">
           <div className="text-xs opacity-40">
-            {survivors.length} alive · {players.find((p) => p.id === dealerId)?.name} dealing
+            {survivors.length} playing · {players.find((p) => p.id === dealerId)?.name} dealing
           </div>
           {rounds.length > 0 && (
             <div className="flex items-center gap-1.5">

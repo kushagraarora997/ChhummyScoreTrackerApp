@@ -300,6 +300,137 @@ Sab files padhe. Neeche sab naya kaam.
 
 ---
 
+## Text, Dealer & Undo/Redo Fixes (2026-06-22)
+
+- [x] **[DONE] "alive" → "playing"** — LiveGame hero subtitle now shows "N playing · X dealing" instead of "N alive".
+- [x] **[DONE] "survives" text** — Only occurrence is SURVIVOR achievement key (internal enum). No UI text uses "survives" — already says "Chhummy Champion". No change needed.
+- [x] **[DONE] Choose first dealer in PlayerSetup** — "🎴 Pehle kaun deal karega?" section appears below player grid when ≥ 2 selected. Chips per selected player; tapping one sets them as dealer (highlighted blue). Auto-defaults to first selected player; if dealer is deselected, falls back to first remaining. `newSession(playerIds, dealerIndex?)` updated to accept optional dealerIndex.
+- [x] **[DONE] Undo/Redo analysis — all scenarios** — Full analysis done:
+  - **BUG FIXED (real, triggerable):** `confirmRound()` did NOT clear `lastUndoneRound`. Scenario: undo R3 → confirm new R3 → Redo available → tapping Redo re-inserts OLD R3 alongside NEW R3 (duplicate round numbers, data corruption). Fixed: added `lastUndoneRound: null` to `confirmRound()`'s main `set()` call.
+  - **DEFENSIVE FIX:** `undoLastRound()` now resets `status: "active"`, clears `winnerId` and `endedAt` if session was somehow "completed". Not reachable in current UI (winner overlay blocks undo access) but correct for future-proofing.
+  - **No issue:** Undo to round 0 → guarded, dealer resets to index 0. ✓
+  - **No issue:** Multiple undos lose previous redo (only last undo is redoable). Acceptable limitation. ✓
+  - **No issue:** Undo after elimination overlay dismissed → accessible and works correctly. ✓
+  - **No issue:** Undo/redo of winner rounds not reachable (winner overlay covers LiveGame). ✓
+
+---
+
+## Cross-Device Sync — Modular Plan
+
+**Stack: Supabase** (PostgreSQL + Realtime + anonymous auth)
+**Auth model: Family Room Code** — 6-char alphanumeric code. Anyone who enters the same code reads/writes the same cloud data. No email, no password.
+**Offline-first:** Dexie stays as the local cache. Cloud is secondary. App still works 100% without internet.
+
+---
+
+### Module 1 — Supabase Project Setup
+*One-time infra work. No code changes yet.*
+
+- [ ] Create Supabase project at supabase.com (free tier)
+- [ ] Mirror Dexie schema in PostgreSQL:
+  - `players` table: `id text PK, name text, emoji text, created_at bigint, last_used_at bigint, family_id text`
+  - `sessions` table: `id text PK, family_id text, started_at bigint, ended_at bigint, player_ids text[], dealer_index int, winner_id text, last_round_id text, status text`
+  - `rounds` table: `id text PK, session_id text, family_id text, number int, closer_id text, scores jsonb, totals jsonb, created_at bigint`
+  - `stats` table: `id text PK, family_id text, totals jsonb`
+  - `achievements` table: `id text PK, family_id text, player_id text, key text, session_id text, created_at bigint`
+- [ ] Add RLS policies: all rows filtered by `family_id` column (users only see their family's data)
+- [ ] Enable Supabase Realtime on `rounds` and `sessions` tables
+- [ ] Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to `.env.local` (gitignored)
+- [ ] Generate TypeScript types from Supabase schema (`npx supabase gen types typescript`)
+
+---
+
+### Module 2 — Supabase Client
+*New file: `src/lib/supabase.ts`*
+
+- [ ] Install `@supabase/supabase-js`
+- [ ] Create `src/lib/supabase.ts` — singleton client: `createClient(url, anonKey)`
+- [ ] Export typed DB helper: `SupabaseClient<Database>` using generated types
+- [ ] Add `src/lib/sync.ts` — utility functions wrapping Supabase calls (mirrors db/operations.ts pattern)
+
+---
+
+### Module 3 — Family Room / Identity
+*New screen or Home modal. No game logic changes.*
+
+- [ ] Design: "Family Room Code" UX on Home screen
+  - If no code set: show "🔗 Sync with Family" banner/button → bottom sheet with 6-char input
+  - If code set: show small green "☁️ Synced" pill on Home, tappable to see room code / disconnect
+  - Generate new code: random 6-char (e.g. "ARORA1") or user-typed
+  - Store code in `localStorage` as `familyId`
+- [ ] `useSyncStore.ts` (new Zustand slice or added to useAppStore):
+  - State: `familyId: string | null`, `syncStatus: "idle" | "syncing" | "online" | "offline" | "error"`
+  - Actions: `joinRoom(code)`, `leaveRoom()`, `setSyncStatus()`
+- [ ] On `joinRoom()`: sign in anonymously via Supabase auth (`supabase.auth.signInAnonymously()`), set `familyId` as user metadata
+- [ ] On app init (`init()`): if `familyId` in localStorage → auto-reconnect to Supabase
+
+---
+
+### Module 4 — Cloud Write Layer
+*Wrap db/operations.ts to dual-write: Dexie first, Supabase async.*
+
+- [ ] Strategy: write to Dexie synchronously (current behavior preserved), then fire Supabase upsert in background (non-blocking)
+- [ ] Add `familyId` to all Supabase writes
+- [ ] Wrap these operations with cloud writes:
+  - `addPlayer` → `supabase.from("players").upsert(...)`
+  - `updatePlayer` → `supabase.from("players").upsert(...)`
+  - `deletePlayer` → `supabase.from("players").delete().eq("id", id)`
+  - `addSession` → `supabase.from("sessions").upsert(...)`
+  - `putSession` → `supabase.from("sessions").upsert(...)`
+  - `addRound` → `supabase.from("rounds").upsert(...)`
+  - `putStats` → `supabase.from("stats").upsert(...)`
+  - `addAchievement` → `supabase.from("achievements").upsert(...)`
+- [ ] If `familyId` is null → skip cloud write (offline-only mode, same as today)
+- [ ] Log cloud write errors to console only (don't block UI or show alerts)
+
+---
+
+### Module 5 — Real-time Round Subscription
+*The killer feature: everyone's phone updates live during a game.*
+
+- [ ] In `useAppStore.init()` or `newSession()`: if `familyId` set, subscribe to Supabase Realtime on `rounds` table filtered by `session_id`
+- [ ] On `INSERT` event for a round not in local `rounds[]`: add round to Dexie + update Zustand store (triggers re-render on all connected devices)
+- [ ] On `session` row update (e.g. `status: "completed"`, `winner_id` set): update local `activeSession` and trigger winner overlay
+- [ ] Unsubscribe on `abandonSession()` / `declareWinner()` / app unload
+- [ ] Handle edge case: device that entered the round gets the INSERT event too — deduplicate by checking if `round.id` already in `store.rounds`
+- [ ] Manage subscription lifecycle: reconnect on `visibilitychange` (already handled elsewhere)
+
+---
+
+### Module 6 — Initial Sync / Data Pull
+*First time a device joins an existing room.*
+
+- [ ] On `joinRoom(code)`: pull all existing Supabase data for that `familyId` into Dexie
+  - Fetch all `players`, `sessions`, `rounds`, `stats`, `achievements` where `family_id = code`
+  - Upsert into Dexie (by `id`, so no duplicates)
+  - Call `store.init()` after to reload UI from merged local data
+- [ ] Conflict strategy: Supabase wins for any row that exists in both (last-write-wins via upsert)
+- [ ] First-time push (new room, existing local data):
+  - On `joinRoom()` when Supabase has no data for that `familyId`: push all local Dexie rows to Supabase
+  - This migrates existing game history to the cloud on first connect
+
+---
+
+### Module 7 — Offline Queue (deferred)
+*Nice-to-have. Do this after Modules 1–6 are stable.*
+
+- [ ] Add `syncQueue` table to Dexie: `{ id, table, operation, payload, createdAt }`
+- [ ] When Supabase write fails (offline / error): write to `syncQueue` instead
+- [ ] On `visibilitychange` / `online` event: flush `syncQueue` to Supabase in order
+- [ ] Clear flushed entries from `syncQueue`
+
+---
+
+### Module 8 — UI / Sync Indicators
+*Polish pass after core sync is working.*
+
+- [ ] Sync status pill on Home: `☁️ Synced` (green) / `⏳ Syncing...` (amber) / `📵 Offline` (gray)
+- [ ] Room code shown in pill on tap: "Room: ARORA1 • Leave"
+- [ ] Live game: small "🟢 Live" badge when Realtime subscription is active (others can see this game)
+- [ ] "Join Live Game" flow: if device joins a room mid-game, it fetches the active session and jumps into the live game screen
+
+---
+
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).

@@ -20,6 +20,7 @@ export default function PlayerSetup({
 }) {
   const [available, setAvailable] = useState<Player[]>([]);
   const [selected, setSelected] = useState<Player[]>([]);
+  const [dealerPlayerId, setDealerPlayerId] = useState<string | null>(null);
   const [addModal, setAddModal] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -39,6 +40,16 @@ export default function PlayerSetup({
   useEffect(() => {
     if (addModal) setTimeout(() => inputRef.current?.focus(), 100);
   }, [addModal]);
+
+  // Keep dealerPlayerId valid: if current dealer was deselected, fallback to first selected
+  useEffect(() => {
+    setDealerPlayerId((cur) => {
+      if (!cur || !selected.some((p) => p.id === cur)) {
+        return selected[0]?.id ?? null;
+      }
+      return cur;
+    });
+  }, [selected]);
 
   const toggle = (p: Player) => {
     setSelected((cur) => {
@@ -92,7 +103,10 @@ export default function PlayerSetup({
   const start = async () => {
     if (selected.length < 2) return;
     navigator.vibrate?.([40, 20, 80]);
-    await newSession(selected.map((p) => p.id));
+    const dealerIndex = dealerPlayerId
+      ? Math.max(0, selected.findIndex((p) => p.id === dealerPlayerId))
+      : 0;
+    await newSession(selected.map((p) => p.id), dealerIndex);
     for (const p of selected) {
       await updatePlayerLastUsed(p.id);
     }
@@ -100,7 +114,7 @@ export default function PlayerSetup({
   };
 
   return (
-    <div className="min-h-screen bg-background text-text p-4 pb-28">
+    <div className="min-h-screen bg-background text-text p-4 pb-36">
       <div className="flex items-center gap-2">
         <button
           onClick={onBack}
@@ -111,7 +125,7 @@ export default function PlayerSetup({
         <h2 className="text-2xl font-semibold">Add Players</h2>
       </div>
 
-      <div className="mt-2 text-sm opacity-70">Select 2–6 players · Long-tap ✏️ to edit</div>
+      <div className="mt-2 text-sm opacity-70">Select 2–6 players · ✏️ to edit</div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         {available.length === 0 && (
@@ -156,6 +170,35 @@ export default function PlayerSetup({
           + Add Player
         </button>
       </div>
+
+      {/* Dealer Selection — shown when ≥ 2 players selected */}
+      {selected.length >= 2 && (
+        <div className="mt-5 rounded-2xl bg-card border border-white/8 p-4">
+          <div className="text-xs font-semibold opacity-50 uppercase tracking-wide mb-3">
+            🎴 Pehle kaun deal karega?
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selected.map((p) => {
+              const isDealer = dealerPlayerId === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setDealerPlayerId(p.id)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition active:scale-[0.97] ${
+                    isDealer
+                      ? "bg-blue-500/20 border-blue-400/50 text-blue-300"
+                      : "bg-elevated border-white/10 opacity-60"
+                  }`}
+                >
+                  <span>{p.emoji ?? "🙂"}</span>
+                  <span>{p.name}</span>
+                  {isDealer && <span className="text-blue-400 text-xs">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="fixed left-0 right-0 bottom-0 p-4 safe bg-gradient-to-t from-background via-background to-transparent">
         <button
@@ -228,7 +271,6 @@ export default function PlayerSetup({
             <div className="w-12 h-1.5 rounded-full bg-white/20 mx-auto mb-5" />
             <div className="text-xl font-semibold text-center mb-4">Player Edit</div>
 
-            {/* Emoji picker */}
             <div className="flex flex-wrap gap-2 justify-center mb-5">
               {EMOJIS.map((em) => (
                 <button
@@ -245,7 +287,6 @@ export default function PlayerSetup({
               ))}
             </div>
 
-            {/* Name input */}
             <input
               type="text"
               value={editName}
