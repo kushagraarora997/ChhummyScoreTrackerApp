@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { useAppStore } from "../store/useAppStore";
 import type { Player } from "../db";
 import { getGlobalStats, getPlayers } from "../db/operations";
+import { getRoomCode, setRoomCode, clearRoomCode, generateRoomCode } from "../lib/roomCode";
+import { pullFromCloud } from "../lib/firebaseSync";
 
 interface HallEntry {
   name: string;
@@ -38,8 +40,13 @@ export default function Home({
   onStats: () => void;
 }) {
   const active = useAppStore((s) => s.activeSession);
+  const init = useAppStore((s) => s.init);
   const [hall, setHall] = useState<HallData | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [roomCode, setRoomCodeState] = useState<string | null>(getRoomCode);
+  const [showJoin, setShowJoin] = useState(false);
+  const [joinInput, setJoinInput] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -60,6 +67,37 @@ export default function Home({
     }
     load();
   }, []);
+
+  async function handleCreateRoom() {
+    const code = generateRoomCode();
+    setRoomCode(code);
+    setRoomCodeState(code);
+  }
+
+  async function handleJoin() {
+    const code = joinInput.trim().toUpperCase();
+    if (code.length < 4) return;
+    setSyncing(true);
+    try {
+      setRoomCode(code);
+      setRoomCodeState(code);
+      await pullFromCloud(code);
+      await init();
+    } catch (e) {
+      console.warn("[firebase] join failed", e);
+    } finally {
+      setSyncing(false);
+      setShowJoin(false);
+      setJoinInput("");
+    }
+  }
+
+  function handleChangeRoom() {
+    clearRoomCode();
+    setRoomCodeState(null);
+    setShowJoin(false);
+    setJoinInput("");
+  }
 
   return (
     <div className="p-4 pt-6">
@@ -90,7 +128,63 @@ export default function Home({
           </button>
         </div>
 
-        <div className="mt-8 rounded-2xl bg-card p-4 border border-white/5">
+        <div className="mt-4 rounded-2xl bg-card border border-white/5 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-semibold">📡 Family Sync</div>
+            {roomCode && <div className="text-xs text-green-400 font-medium">● Live</div>}
+          </div>
+          {roomCode ? (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 font-mono text-xl font-black tracking-[0.25em] text-center py-2 bg-elevated rounded-xl text-amber-400">
+                {roomCode}
+              </div>
+              <button
+                onClick={handleChangeRoom}
+                className="text-xs text-white/40 active:opacity-60 px-2 py-1"
+              >
+                Change
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleCreateRoom}
+                  className="py-3 rounded-xl bg-elevated text-sm font-medium active:scale-95 transition"
+                >
+                  🏠 Create Room
+                </button>
+                <button
+                  onClick={() => setShowJoin((v) => !v)}
+                  className="py-3 rounded-xl bg-elevated text-sm font-medium active:scale-95 transition"
+                >
+                  🔗 Join Room
+                </button>
+              </div>
+              {showJoin && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={joinInput}
+                    onChange={(e) => setJoinInput(e.target.value.toUpperCase().slice(0, 6))}
+                    placeholder="Room code"
+                    className="flex-1 bg-elevated rounded-xl px-3 py-2 font-mono text-lg tracking-widest text-center text-amber-400 outline-none"
+                    autoCapitalize="characters"
+                    maxLength={6}
+                  />
+                  <button
+                    onClick={handleJoin}
+                    disabled={syncing || joinInput.length < 4}
+                    className="px-4 py-2 bg-green-600 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition"
+                  >
+                    {syncing ? "..." : "Join"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-card p-4 border border-white/5">
           <div className="flex items-center justify-between mb-3">
             <div className="text-lg font-semibold">🏆 Hall of Fame</div>
             {hall && hall.totalGames > 0 && (

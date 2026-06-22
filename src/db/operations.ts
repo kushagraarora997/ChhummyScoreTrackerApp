@@ -1,5 +1,12 @@
 import { db, Player, Session, Round, Stats, Achievement } from "./index";
 import { nanoid } from "../utils/nanoid";
+import { getRoomCode } from "../lib/roomCode";
+import {
+  syncPlayer, syncSession, syncRound,
+  deleteRoundFromCloud, deletePlayerFromCloud,
+} from "../lib/firebaseSync";
+
+function fid() { return getRoomCode(); }
 
 // ── Players ──────────────────────────────────────────────────────────────────
 
@@ -7,20 +14,26 @@ export function getPlayers(): Promise<Player[]> {
   return db.players.toArray();
 }
 
-export function addPlayer(player: Player): Promise<string> {
-  return db.players.add(player);
+export async function addPlayer(player: Player): Promise<string> {
+  const result = await db.players.add(player);
+  const f = fid(); if (f) syncPlayer(f, player);
+  return result;
 }
 
 export function updatePlayerLastUsed(id: string): Promise<number> {
   return db.players.update(id, { lastUsedAt: Date.now() });
 }
 
-export function updatePlayer(id: string, data: Partial<Player>): Promise<number> {
-  return db.players.update(id, data);
+export async function updatePlayer(id: string, data: Partial<Player>): Promise<number> {
+  const result = await db.players.update(id, data);
+  const f = fid();
+  if (f) db.players.get(id).then((p) => { if (p) syncPlayer(f, p); });
+  return result;
 }
 
-export function deletePlayer(id: string): Promise<void> {
-  return db.players.delete(id);
+export async function deletePlayer(id: string): Promise<void> {
+  await db.players.delete(id);
+  const f = fid(); if (f) deletePlayerFromCloud(f, id);
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
@@ -29,12 +42,16 @@ export function getActiveSession(): Promise<Session | undefined> {
   return db.sessions.where("status").equals("active").first();
 }
 
-export function addSession(session: Session): Promise<string> {
-  return db.sessions.add(session);
+export async function addSession(session: Session): Promise<string> {
+  const result = await db.sessions.add(session);
+  const f = fid(); if (f) syncSession(f, session);
+  return result;
 }
 
-export function putSession(session: Session): Promise<string> {
-  return db.sessions.put(session);
+export async function putSession(session: Session): Promise<string> {
+  const result = await db.sessions.put(session);
+  const f = fid(); if (f) syncSession(f, session);
+  return result;
 }
 
 export function getCompletedSessions(): Promise<Session[]> {
@@ -51,16 +68,21 @@ export function countRoundsBySession(sessionId: string): Promise<number> {
   return db.rounds.where("sessionId").equals(sessionId).count();
 }
 
-export function addRound(round: Round): Promise<string> {
-  return db.rounds.add(round);
+export async function addRound(round: Round): Promise<string> {
+  const result = await db.rounds.add(round);
+  const f = fid(); if (f) syncRound(f, round);
+  return result;
 }
 
-export function putRound(round: Round): Promise<string> {
-  return db.rounds.put(round);
+export async function putRound(round: Round): Promise<string> {
+  const result = await db.rounds.put(round);
+  const f = fid(); if (f) syncRound(f, round);
+  return result;
 }
 
-export function deleteRound(id: string): Promise<void> {
-  return db.rounds.delete(id);
+export async function deleteRound(id: string): Promise<void> {
+  await db.rounds.delete(id);
+  const f = fid(); if (f) deleteRoundFromCloud(f, id);
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
