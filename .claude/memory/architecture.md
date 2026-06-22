@@ -234,6 +234,18 @@ metadata:
 - `LiveGame.tsx`: subscription `useEffect` starts when `roomCode + session` exist; cleans up on unmount; dep array is `[session?.id, roomCode]`
 - "● Live" green pill (`bg-success/20 text-success text-[10px]`) shown in LiveGame header when `roomCode` is set
 
+**Firebase Phase 2+ — stats/achievements sync + push-on-create (commit 3d174db, 2026-06-23):**
+- `syncStats(familyId, stats)` + `syncAchievement(familyId, achievement)` added to `src/lib/firebaseSync.ts`
+- `putStats()` in `operations.ts` now calls `syncStats()` fire-and-forget; `addAchievement()` calls `syncAchievement()`
+- `pushToCloud(familyId)` reads all Dexie tables and fires all sync functions in parallel — called from `handleCreateRoom()` in Home.tsx
+- `pullFromCloud()` updated to also pull stats (via `getDoc`) and achievements (via `getDocs`) into Dexie
+- `clearAllData()` added to `operations.ts` — clears all 5 Dexie tables; called from StatsPage "Clear All Data" button
+
+**StatsPage new features (commit 3d174db, 2026-06-23):**
+- Records: Longest Game (amber) + Fastest Win (green) in Charts tab — computed from `history.roundCount`
+- Weekly Activity: 8-week BarChart (blue cells, 160px) showing games played per week
+- Clear All Data: two-step confirm button at bottom of StatsPage (outside the `!loaded` ternary); calls `clearAllData()` + `clearRoomCode()` + `init()` + `onBack()`
+
 **CRITICAL — ingestCloudRound race condition (fixed 2026-06-23):**
 - Firestore SDK immediately applies `setDoc` to its local cache BEFORE network round-trip. This triggers `onSnapshot` on the same device that wrote the doc — potentially BEFORE `confirmRound()`'s `set()` runs.
 - Initial naive check `if (rounds.some((r) => r.id === round.id)) return` passes (rounds=[] at start of ingest), then `await putRound` completes AFTER `confirmRound`'s `set({ rounds: [round1] })` runs, so the ingest's functional `set((s) => [...s.rounds, round])` appends a DUPLICATE (s.rounds already has round1).

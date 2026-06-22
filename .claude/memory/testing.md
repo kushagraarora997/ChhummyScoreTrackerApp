@@ -63,6 +63,28 @@ Then write test script as `.mjs` and run with `node test.mjs`.
 - Home.tsx "resume" button text is "🎯 Continue Battle" NOT "Resume"
 - Use `page.locator("text=Continue Battle")` after join + init
 
+## Features E2E Tests (2026-06-23)
+
+**File:** `C:\Users\kusha\AppData\Local\Temp\pw-test\features-e2e.mjs`
+**Result:** 16/16 passed ✅ (commit 3d174db)
+**Coverage:**
+- Test 7: Quick Rematch — winner overlay shows → "Quick Rematch" → LiveGame resets to Round 1 with same players ✅
+- Test 8: PlayerHistorySheet — tap player card after 2 rounds → shows "2 rounds played" → backdrop tap closes ✅
+- Test 9: Share Standings disabled before first round, enabled after ✅
+- Test 10: H2H stats — 2 complete games → "Head-to-Head" section visible with both player names and "2 games" ✅
+
+**CRITICAL — Chip list in EnterScores:**
+- `CHIPS = [0, 1, 2, 3, 4, 5, 10, 15, 20, 25]` for non-closers — NO 30 chip; CLAUDE.md was incorrect saying "30" exists
+- `CLOSER_CHIPS = [0, 1, 2, 3, 4, 5]` for closer
+- Max non-custom chip is **25**. To build to 110pts in a test: 25+25+25+25+10 = 110 (5 rounds)
+- 25×4 = 100 (exactly safe); 100+10 = 110 → eliminated
+
+**`waitOverlayGone` pattern:**
+- After `Confirm Round`, FullOverlay (z-50 backdrop) has a 300ms Framer Motion exit animation
+- Pattern: `await page.waitForFunction(() => !document.querySelector(".fixed.inset-0.z-50"), { timeout: 3000 }).catch(() => {})` at the START of each `playRound` helper
+- `.catch(() => {})` makes it safe when winner/elimination overlay (also z-50) takes over — the function times out and continues
+- This pattern replaces the old `sleep(300)` approach and is more reliable
+
 ## Known Test Gaps (as of 2026-06-22 review)
 
 | Gap | Risk |
