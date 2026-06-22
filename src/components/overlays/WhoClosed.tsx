@@ -14,7 +14,7 @@ export default function WhoClosed() {
       <div className="grid grid-cols-2 gap-3">
         {players.map((p, i) => {
           const total = totals[p.id] || 0;
-          const eliminated = total >= 100;
+          const eliminated = total > 100;
           const isLast = i === players.length - 1 && players.length % 2 !== 0;
 
           return (

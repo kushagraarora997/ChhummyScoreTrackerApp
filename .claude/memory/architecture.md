@@ -133,6 +133,19 @@ metadata:
 - `bg-inherit` only inherits the computed `background-color` of the IMMEDIATE parent, not the nearest ancestor with a non-transparent background. If a child div sits inside `<div className="pb-10">` (no background), `bg-inherit` on a deeper element resolves to `transparent`, not the grandparent's colour.
 - Fix: use an explicit colour (e.g. `bg-[#171717]`) on sticky/floating elements. Affected: Confirm Round sticky bar in EnterScores overlay.
 
+**LiveGame.tsx header redesign (2026-06-22):**
+- Removed "Round N" from center of 3-button header; now Pause (left) and Undo (right) only
+- Added ⏸ icon to Pause button text
+- Added hero section below header: `text-4xl font-black` Round number, context line ("N alive · X dealing"), round history dots (1 dot per completed round, max 14, then "+N")
+
+**Elimination threshold change (2026-06-22):**
+- Changed from `>= 100` to `> 100` across ALL files — 100 is now safe, 101+ = eliminated
+- Files changed: useAppStore.ts (survivors filter, justEliminated filter, writeStats elim check), LiveGame.tsx (cardState, survivors, sorted), EnterScores.tsx (players filter, running total 💀 preview), WhoClosed.tsx (eliminated check), PauseOverlay.tsx (ranked sort + hidden card elim), WinnerView.tsx (isElim ×2), PlayerHistorySheet.tsx (dangerTotal), StatsPage.tsx (elim in history), CLAUDE.md game rules
+
+**Known open bugs (as of 2026-06-22 self-audit):**
+- `newSession()` does NOT abandon the existing active session in DB before creating a new one. If user taps "Start New Game" on Home while an active session exists (without going through Pause → End Game), two sessions with `status: "active"` exist in DB. On reload, `getActiveSession()` returns whichever nanoid sorts first — wrong session may resume. Fix: in `newSession()`, check `get().activeSession` and if it's active, `putSession({ ...existing, status: "abandoned", endedAt: Date.now() })` before `addSession(new)`.
+- PlayerHistorySheet has no discovery hint — cards have `cursor-pointer` but users have no reason to know tapping a card opens history. Proposed fix: subtle "Tap card for history ↓" text below round number when rounds > 0.
+
 **Fixed bugs (do not re-introduce):**
 - `newSession()` reloads players from DB before setting state — fixes "Player" name bug
 - `newSession()` ALWAYS resets `ui.overlay` to none — prevents stale overlay from previous game

@@ -63,7 +63,7 @@ export default function PlayerHistorySheet({
         ) : (
           <div className="space-y-2">
             {rows.map((r) => {
-              const dangerTotal = r.total >= 100;
+              const dangerTotal = r.total > 100;
               const critTotal = r.total >= 85;
               const warnTotal = r.total >= 70;
               return (

@@ -115,7 +115,7 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
           {ranked.map((p, i) => {
             const total = totals[p.id] ?? 0;
             const isWinner = p.id === winnerId;
-            const isElim = total >= 100;
+            const isElim = total > 100;
             return (
               <div
                 key={p.id}
@@ -213,7 +213,7 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
             {ranked.map((p, i) => {
               const total = totals[p.id] ?? 0;
               const isWinner = p.id === winnerId;
-              const isElim = total >= 100;
+              const isElim = total > 100;
               const nameColor = isWinner ? "#FDE68A" : "#F5F5F5";
               const ptsColor = isWinner ? "#FDE68A" : isElim ? "#F87171" : "rgba(255,255,255,0.8)";
               return (

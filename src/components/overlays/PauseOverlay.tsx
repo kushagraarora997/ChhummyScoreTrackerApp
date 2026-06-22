@@ -19,8 +19,8 @@ export default function PauseOverlay({ onExit }: { onExit: () => void }) {
   const ranked = [...players].sort((a, b) => {
     const ta = totals[a.id] ?? 0;
     const tb = totals[b.id] ?? 0;
-    if (ta >= 100 && tb < 100) return 1;
-    if (tb >= 100 && ta < 100) return -1;
+    if (ta > 100 && tb <= 100) return 1;
+    if (tb > 100 && ta <= 100) return -1;
     return ta - tb;
   });
 
@@ -140,7 +140,7 @@ export default function PauseOverlay({ onExit }: { onExit: () => void }) {
           <tbody>
             {ranked.map((p, i) => {
               const total = totals[p.id] ?? 0;
-              const elim = total >= 100;
+              const elim = total > 100;
               const warn = total >= 70 && total < 100;
               const crit = total >= 85 && total < 100;
               const nameColor = elim ? "rgba(248,113,113,0.8)" : crit ? "#F87171" : warn ? "#F59E0B" : "#F5F5F5";

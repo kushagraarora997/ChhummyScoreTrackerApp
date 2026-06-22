@@ -16,7 +16,7 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - 6-card Rummy variation, 2–6 players
 - Close requires: 1 mandatory pure sequence of 3 + remaining 3 as (pure seq OR trail OR deadwood ≤ 5)
 - After close: ALL players reveal; multiple players can score 0 — this is valid and common
-- Scores accumulate; 100+ = eliminated
+- Scores accumulate; **101+ = eliminated** (100 is still safe — changed 2026-06-22)
 - **Max 60 points per round** for any non-closer player — nobody can enter more than 60 in a single round
 - Closer becomes dealer next round; closer's own score capped at 5 (deadwood was ≤5 to close)
 - Last survivor wins

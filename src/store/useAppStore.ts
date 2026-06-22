@@ -36,7 +36,7 @@ async function writeStats(session: Session, allRounds: Round[]) {
 
   const lastTotals = allRounds[allRounds.length - 1]?.totals ?? {};
   for (const pid of session.playerIds) {
-    if (pid !== session.winnerId && (lastTotals[pid] || 0) >= 100) {
+    if (pid !== session.winnerId && (lastTotals[pid] || 0) > 100) {
       t.eliminations[pid] = (t.eliminations[pid] || 0) + 1;
     }
   }
@@ -331,7 +331,7 @@ export const useAppStore = create<AppState>()(
 
       const survivors =
         activeSession.playerIds.filter(
-          (pid) => totals[pid] < 100
+          (pid) => totals[pid] <= 100
         );
 
       set({
@@ -346,8 +346,8 @@ export const useAppStore = create<AppState>()(
       const justEliminated =
         activeSession.playerIds.filter(
           (pid) =>
-            prevTotals[pid] < 100 &&
-            totals[pid] >= 100
+            prevTotals[pid] <= 100 &&
+            totals[pid] > 100
         );
 
       if (justEliminated.length > 0 && survivors.length > 1) {

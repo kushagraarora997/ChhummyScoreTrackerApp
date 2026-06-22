@@ -39,19 +39,19 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
 
   const roundNumber = rounds.length + 1;
   const dealerId = session.playerIds[session.dealerIndex];
-  const survivors = players.filter((p) => (totals[p.id] || 0) < 100);
+  const survivors = players.filter((p) => (totals[p.id] || 0) <= 100);
 
   const sorted = [...players].sort((a, b) => {
     const ta = totals[a.id] || 0;
     const tb = totals[b.id] || 0;
-    const ea = ta >= 100 ? 1 : 0;
-    const eb = tb >= 100 ? 1 : 0;
+    const ea = ta > 100 ? 1 : 0;
+    const eb = tb > 100 ? 1 : 0;
     if (ea !== eb) return ea - eb;
     return tb - ta;
   });
 
   const cardState = (total: number) => {
-    if (total >= 100) return "eliminated";
+    if (total > 100) return "eliminated";
     if (total >= 85) return "critical";
     if (total >= 70) return "warning";
     return "normal";
@@ -68,10 +68,8 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
           onClick={store.pause}
           className="px-3 py-2 rounded-xl bg-card border border-white/10"
         >
-          Pause
+          ⏸ Pause
         </button>
-
-        <div className="text-xl font-semibold">Round {roundNumber}</div>
 
         <button
           onClick={() => { if (rounds.length > 0) setUndoConfirm(true); }}
@@ -79,6 +77,26 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         >
           Undo
         </button>
+      </div>
+
+      {/* Game hero — round number, context, history dots */}
+      <div className="mt-4 mb-1">
+        <div className="text-4xl font-black tracking-tight">Round {roundNumber}</div>
+        <div className="flex items-center justify-between mt-1.5">
+          <div className="text-xs opacity-40">
+            {survivors.length} alive · {players.find((p) => p.id === dealerId)?.name} dealing
+          </div>
+          {rounds.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: Math.min(rounds.length, 14) }).map((_, i) => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-white/25" />
+              ))}
+              {rounds.length > 14 && (
+                <span className="text-[10px] opacity-30">+{rounds.length - 14}</span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {undoConfirm && (

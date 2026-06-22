@@ -234,18 +234,77 @@ Brainstormed on 2026-06-20. Do karo ek ek karke.
 
 ## New Features (2026-06-22)
 
-- [ ] **Confetti on Winner Screen** — canvas-confetti burst when winner overlay mounts.
-- [ ] **Quick Rematch** — "Rematch →" button on winner screen restarts session with same players.
-- [ ] **Score History Per Player** — Tap any player card mid-game to see their round-by-round score breakdown in a bottom sheet.
-- [ ] **Mid-Game Leaderboard Share** — "Share Standings" button in Pause overlay; captures current leaderboard as PNG via html2canvas.
-- [ ] **Head-to-Head Stats** — New section in Stats page: pairwise win records for all players who've played together ≥2 times.
+- [x] **[DONE] Confetti on Winner Screen** — Fixed 2026-06-22. canvas-confetti, 3-wave burst.
+- [x] **[DONE] Quick Rematch** — Fixed 2026-06-22. "🔁 Quick Rematch" on winner screen; calls newSession(same playerIds).
+- [x] **[DONE] Score History Per Player** — Fixed 2026-06-22. PlayerHistorySheet bottom sheet; tap player card when overlay is none and rounds > 0.
+- [x] **[DONE] Mid-Game Leaderboard Share** — Fixed 2026-06-22. "📊 Share Standings" in PauseOverlay; html2canvas off-screen table card.
+- [x] **[DONE] Head-to-Head Stats** — Fixed 2026-06-22. H2HRecord pairwise computation in StatsPage; shown in Players tab when ≥2 shared games.
+
+---
+
+## Self-Audit (2026-06-22) — Full Code Review
+
+Sab files padhe. Neeche sab naya kaam.
+
+---
+
+### BUGS
+
+- [x] **[DONE] Elimination threshold is 101, not 100** — Fixed 2026-06-22. — Currently `totals[pid] >= 100` eliminates a player. Rule should be `> 100` (i.e., 100 is safe, 101+ is OUT). Affects: `confirmRound()` in useAppStore.ts (survivors filter, justEliminated filter, tie-breaker case), `cardState()` in LiveGame.tsx (eliminated state), `EnterScores.tsx` (players filter, running total 💀 preview), `WhoClosed.tsx` (disabled/eliminated check), `PauseOverlay.tsx` (ranked sort elim check + hidden card color), `WinnerView.tsx` (isElim check), `PlayerHistorySheet.tsx` (color thresholds), `StatsPage.tsx` (elim color in history). Also update CLAUDE.md game rules.
+
+- [ ] **[BUG] Start New Game doesn't abandon existing active session in DB** — `newSession()` calls `addSession()` without first marking the old session as "abandoned". If user has active session and taps "Start New Game" without abandoning via Pause → End Game, two sessions with `status: "active"` exist in DB. On reload, `getActiveSession()` returns whichever nanoid sorts first — might resume the wrong session. Fix: in `newSession()`, if `get().activeSession` exists and is "active", `putSession({ ...existing, status: "abandoned", endedAt: Date.now() })` before adding the new one.
+
+- [ ] **[BUG] PlayerHistorySheet — no visual hint that player cards are tappable** — Cards have `cursor-pointer` but no subtitle/indicator saying "tap for history". Users have no reason to discover this. Fix: add a subtle "Tap card for history ↓" hint below the round number when rounds > 0 and no overlay is active.
+
+---
+
+### UX / POLISH
+
+- [ ] **Player management — delete a player** — Once added, a player lives in DB forever and appears in PlayerSetup. No way to remove someone. Need a long-press or swipe-to-delete / "Edit Players" mode on PlayerSetup that shows a ✕ on each card.
+
+- [ ] **Player management — rename / change emoji** — Player name and emoji are set once at creation. No way to fix a typo or update the emoji. Same edit mode as above.
+
+- [ ] **History tab — session duration not shown** — Each session row shows date but not how long it lasted (`endedAt - startedAt`). "~45 min" would add nice context.
+
+- [ ] **Stats — "Games Played" (sessions count) missing** — StatsPage shows Rounds, Avg Score, Best Streak, but not how many total sessions a player was in. Add a "Games" StatBox.
+
+- [ ] **Achievement badges — no description on tap** — Stats page shows badges like "🥶 Ice Cold" but new users won't know what they mean. A tap-to-expand tooltip or modal with description would help.
+
+- [ ] **Pause button — no icon** — The "Pause" text button in LiveGame header could have ⏸ prefix for quicker recognition while phone is being passed.
+
+- [ ] **Charts — score trend line chart** — The Charts tab has Win and Close/Elim bars. A per-player score-over-rounds line chart (for the most recent session) would make the Charts tab far more interesting. Use Recharts LineChart.
+
+- [ ] **Share — text-only option** — Currently only PNG share. Add a "Copy Text" button that copies a formatted text result: "Arjun won Chhummy in 8 rounds with 23 pts • Always Agitated Aroras 🃏". Easy fallback when Web Share API fails.
+
+- [ ] **PlayerHistorySheet — score trend** — The sheet shows a table of round-by-round scores. A small bar chart of scores per round (above the table) would make the progression more visual. Uses Recharts BarChart, same lib already imported.
+
+- [ ] **History tab — tap session shows per-round scores but no summary row** — Expanded rounds don't show a final total row per player. Add a "Final Scores" summary at the bottom of the expanded section.
+
+---
+
+### ARCHITECTURE DEBT
+
+- [ ] **Operations layer not fully migrated** — `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` still call `db.*` directly. `useAppStore.ts` was migrated (zero db.* calls) but the pages were not. Low risk, consistency debt. Migrate when touching those files.
+
+- [ ] **`confirmRound()` is 170+ lines** — Handles round creation, DB writes, session update, elimination decision, winner decision, tie-breaker, overlay transitions, haptics, sound. Six responsibilities. Risky to touch. Should be split into helper functions. Candidate: extract `resolveRoundOutcome(totals, survivors, closerId)` that returns `"elimination" | "winner" | "tieWinner" | "normal"`.
+
+- [ ] **`writeStats()` lives in `useAppStore.ts`** — Module-level function, not part of the store. Natural home: `src/utils/stats.ts` or `src/db/operations.ts`.
+
+- [ ] **Whole-store Zustand subscriptions** — Components like `LiveGame`, `EnterScores`, `WhoClosed` use `const store = useAppStore()` which re-renders on ANY state change. Should use selectors (`useAppStore(s => s.players)`). Not visible at current scale but is correctness debt.
+
+---
+
+### TEST COVERAGE GAPS
+
+- [ ] **No E2E tests for 5 new 2026-06-22 features** — Confetti (hard to assert but can verify no crash), Quick Rematch (assert live game resets with same players), PlayerHistorySheet (tap card, assert sheet appears with correct data), mid-game Share Standings (assert button exists, disabled state before round 1), Head-to-Head (assert H2H section appears in Players tab after 2+ shared games).
 
 ---
 
 ## Future / Backlog
 
 - [ ] **Weekly / Monthly Dashboard** — Recharts time-series charts (requires storing session dates in stats).
-- [ ] **Deployment** — Already on Vercel. Push to main done 2026-06-21.
+- [ ] **Clear All Data** — Nuclear reset option (wipe all IndexedDB tables). Useful for fresh starts or handing the device to new users.
+- [ ] **"Longest Game" and "Fastest Win" stats** — Longest: most rounds in a single session. Fastest: win in fewest rounds (maybe just 1-2 if someone else gets unlucky). Nice flavor stats.
 
 ---
 

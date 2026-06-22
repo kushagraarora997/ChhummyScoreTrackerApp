@@ -45,8 +45,8 @@ Every task — bug fix, feature, cleanup — goes into `TODO.md` first. Whether 
 
 ### Scores:
 - Accumulate across rounds
-- **100 or more = eliminated** from the session
-- Last surviving player below 100 = **wins**
+- **101 or more = eliminated** from the session (100 is still safe)
+- Last surviving player at 100 or below = **wins**
 - **Edge case:** If all players cross 100 in the same round, the player with the lowest total wins. Tie broken by whoever closed that round. (Implemented in `confirmRound()`.)
 
 ### Dealer Rotation:

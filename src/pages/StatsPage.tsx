@@ -359,7 +359,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                                       const p = playerMap.get(pid);
                                       const score = r.scores[pid] ?? 0;
                                       const total = r.totals[pid] ?? 0;
-                                      const elim = total >= 100;
+                                      const elim = total > 100;
                                       return (
                                         <div key={pid} className="flex items-center justify-between text-xs">
                                           <span className="opacity-60">{p?.emoji} {p?.name}</span>

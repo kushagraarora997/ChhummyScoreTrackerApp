@@ -19,7 +19,7 @@ export default function EnterScores() {
   const totals = store.getTotals();
 
   const players = store.players.filter(
-    (p) => session.playerIds.includes(p.id) && (totals[p.id] || 0) < 100
+    (p) => session.playerIds.includes(p.id) && (totals[p.id] || 0) <= 100
   );
 
   function handleConfirm() {
@@ -98,13 +98,13 @@ export default function EnterScores() {
 
                 {pending !== undefined && (
                   <div className={`mt-2 text-sm text-center font-semibold ${
-                    currentTotal + pending >= 100 ? "text-danger"
+                    currentTotal + pending > 100 ? "text-danger"
                     : currentTotal + pending >= 85 ? "text-orange-400"
                     : currentTotal + pending >= 70 ? "text-warning"
                     : "text-success/80"
                   }`}>
                     {currentTotal} + {pending} = {currentTotal + pending}
-                    {currentTotal + pending >= 100 && " 💀"}
+                    {currentTotal + pending > 100 && " 💀"}
                   </div>
                 )}
               </div>
