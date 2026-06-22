@@ -67,6 +67,9 @@ interface AppState {
 
   tempScores: Record<string, number>;
   setTempScore: (pid: string, v: number) => void;
+
+  ingestCloudRound: (round: Round) => Promise<void>;
+  ingestCloudSession: (session: Session) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
@@ -408,6 +411,23 @@ export const useAppStore = create<AppState>()(
           },
         },
       }));
+    },
+
+    async ingestCloudRound(round) {
+      if (get().rounds.some((r) => r.id === round.id)) return;
+      await putRound(round);
+      // Re-check after async putRound — confirmRound may have already set this round
+      set((s) => {
+        if (s.rounds.some((r) => r.id === round.id)) return s;
+        return { rounds: [...s.rounds, round].sort((a, b) => a.number - b.number) };
+      });
+    },
+
+    async ingestCloudSession(session) {
+      const { activeSession } = get();
+      if (!activeSession || activeSession.id !== session.id) return;
+      await putSession(session);
+      set({ activeSession: session });
     },
 
     async abandonSession() {

@@ -1,6 +1,6 @@
 import {
   doc, setDoc, deleteDoc,
-  getDocs, collection, query, where, limit,
+  getDocs, collection, query, where, limit, onSnapshot,
 } from "firebase/firestore";
 import { firestore } from "./firebase";
 import { db } from "../db";
@@ -74,4 +74,42 @@ export async function pullFromCloud(familyId: string): Promise<{
   }
 
   return { playerCount: players.length, hasActiveSession };
+}
+
+// ── Real-time subscriptions (Phase 2) ─────────────────────────────────────────
+
+export function subscribeToRounds(
+  familyId: string,
+  sessionId: string,
+  onRound: (round: Round) => void
+): () => void {
+  const q = query(
+    collection(firestore, base(familyId), "rounds"),
+    where("sessionId", "==", sessionId)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added" || change.type === "modified") {
+          onRound(change.doc.data() as Round);
+        }
+      });
+    },
+    (e) => console.warn("[firebase] subscribeToRounds error", e)
+  );
+}
+
+export function subscribeToSession(
+  familyId: string,
+  sessionId: string,
+  onSession: (session: Session) => void
+): () => void {
+  return onSnapshot(
+    doc(firestore, base(familyId), "sessions", sessionId),
+    (snap) => {
+      if (snap.exists()) onSession(snap.data() as Session);
+    },
+    (e) => console.warn("[firebase] subscribeToSession error", e)
+  );
 }

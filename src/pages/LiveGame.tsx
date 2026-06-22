@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { motion, AnimatePresence } from "framer-motion";
+import { getRoomCode } from "../lib/roomCode";
+import { subscribeToRounds, subscribeToSession } from "../lib/firebaseSync";
 import WhoClosed from "../components/overlays/WhoClosed";
 import EnterScores from "../components/overlays/EnterScores";
 import EliminationOverlay from "../components/overlays/EliminationOverlay";
@@ -21,11 +23,22 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
   const redoLastRound = useAppStore((s) => s.redoLastRound);
   const clearRedo = useAppStore((s) => s.clearRedo);
   const declareWinner = useAppStore((s) => s.declareWinner);
+  const ingestCloudRound = useAppStore((s) => s.ingestCloudRound);
+  const ingestCloudSession = useAppStore((s) => s.ingestCloudSession);
 
   const totals = useMemo(() => getTotals(), [rounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [redoConfirm, setRedoConfirm] = useState(false);
   const [historyPlayerId, setHistoryPlayerId] = useState<string | null>(null);
+
+  const roomCode = getRoomCode();
+
+  useEffect(() => {
+    if (!roomCode || !session) return;
+    const unsubRounds = subscribeToRounds(roomCode, session.id, ingestCloudRound);
+    const unsubSession = subscribeToSession(roomCode, session.id, ingestCloudSession);
+    return () => { unsubRounds(); unsubSession(); };
+  }, [session?.id, roomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const players = useMemo(() => {
     const map = new Map(allPlayers.map((p) => [p.id, p]));
@@ -80,6 +93,12 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         >
           ⏸ Pause
         </button>
+
+        {roomCode && (
+          <span className="px-2 py-0.5 rounded-full bg-success/20 text-success text-[10px] font-semibold tracking-wide">
+            ● Live
+          </span>
+        )}
 
         <button
           onClick={() => { if (rounds.length > 0) setUndoConfirm(true); }}
