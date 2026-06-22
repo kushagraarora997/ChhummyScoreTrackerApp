@@ -252,39 +252,39 @@ Sab files padhe. Neeche sab naya kaam.
 
 - [x] **[DONE] Elimination threshold is 101, not 100** — Fixed 2026-06-22. — Currently `totals[pid] >= 100` eliminates a player. Rule should be `> 100` (i.e., 100 is safe, 101+ is OUT). Affects: `confirmRound()` in useAppStore.ts (survivors filter, justEliminated filter, tie-breaker case), `cardState()` in LiveGame.tsx (eliminated state), `EnterScores.tsx` (players filter, running total 💀 preview), `WhoClosed.tsx` (disabled/eliminated check), `PauseOverlay.tsx` (ranked sort elim check + hidden card color), `WinnerView.tsx` (isElim check), `PlayerHistorySheet.tsx` (color thresholds), `StatsPage.tsx` (elim color in history). Also update CLAUDE.md game rules.
 
-- [ ] **[BUG] Start New Game doesn't abandon existing active session in DB** — `newSession()` calls `addSession()` without first marking the old session as "abandoned". If user has active session and taps "Start New Game" without abandoning via Pause → End Game, two sessions with `status: "active"` exist in DB. On reload, `getActiveSession()` returns whichever nanoid sorts first — might resume the wrong session. Fix: in `newSession()`, if `get().activeSession` exists and is "active", `putSession({ ...existing, status: "abandoned", endedAt: Date.now() })` before adding the new one.
+- [x] **[DONE] Start New Game doesn't abandon existing active session in DB** — Fixed 2026-06-22. `newSession()` now calls `putSession({ ...existing, status: "abandoned", endedAt: Date.now() })` before creating the new session.
 
-- [ ] **[BUG] PlayerHistorySheet — no visual hint that player cards are tappable** — Cards have `cursor-pointer` but no subtitle/indicator saying "tap for history". Users have no reason to discover this. Fix: add a subtle "Tap card for history ↓" hint below the round number when rounds > 0 and no overlay is active.
+- [x] **[DONE] PlayerHistorySheet — no visual hint that player cards are tappable** — Fixed 2026-06-22. Subtle "Tap any card to see round history" hint shown below hero area when rounds > 0 and no overlay is active.
 
 ---
 
 ### UX / POLISH
 
-- [ ] **Player management — delete a player** — Once added, a player lives in DB forever and appears in PlayerSetup. No way to remove someone. Need a long-press or swipe-to-delete / "Edit Players" mode on PlayerSetup that shows a ✕ on each card.
+- [x] **[DONE] Player management — delete a player** — Fixed 2026-06-22. ✏️ icon button on each player card in PlayerSetup opens edit sheet with Delete button.
 
-- [ ] **Player management — rename / change emoji** — Player name and emoji are set once at creation. No way to fix a typo or update the emoji. Same edit mode as above.
+- [x] **[DONE] Player management — rename / change emoji** — Fixed 2026-06-22. Same edit sheet as delete — emoji picker + name input + Save button.
 
-- [ ] **History tab — session duration not shown** — Each session row shows date but not how long it lasted (`endedAt - startedAt`). "~45 min" would add nice context.
+- [x] **[DONE] History tab — session duration not shown** — Fixed 2026-06-22. `formatDuration()` helper added. Duration shown in session subtitle as "• 42m".
 
-- [ ] **Stats — "Games Played" (sessions count) missing** — StatsPage shows Rounds, Avg Score, Best Streak, but not how many total sessions a player was in. Add a "Games" StatBox.
+- [x] **[DONE] Stats — "Games Played" (sessions count) missing** — Fixed 2026-06-22. "Games" StatBox added per player in Stats tab. Counts completed sessions player participated in.
 
-- [ ] **Achievement badges — no description on tap** — Stats page shows badges like "🥶 Ice Cold" but new users won't know what they mean. A tap-to-expand tooltip or modal with description would help.
+- [x] **[DONE] Achievement badges — no description on tap** — Fixed 2026-06-22. Badges are tappable; selected badge shows description text inline below the badge row.
 
-- [ ] **Pause button — no icon** — The "Pause" text button in LiveGame header could have ⏸ prefix for quicker recognition while phone is being passed.
+- [x] **[DONE] Pause button — no icon** — Already done in prior batch (⏸ Pause). No change needed.
 
-- [ ] **Charts — score trend line chart** — The Charts tab has Win and Close/Elim bars. A per-player score-over-rounds line chart (for the most recent session) would make the Charts tab far more interesting. Use Recharts LineChart.
+- [x] **[DONE] Charts — score trend line chart** — Fixed 2026-06-22. LineChart added in Charts tab showing per-player running totals over rounds for the most recent game.
 
-- [ ] **Share — text-only option** — Currently only PNG share. Add a "Copy Text" button that copies a formatted text result: "Arjun won Chhummy in 8 rounds with 23 pts • Always Agitated Aroras 🃏". Easy fallback when Web Share API fails.
+- [x] **[DONE] Share — text-only option** — Fixed 2026-06-22. "📋 Copy Text" button added to WinnerView. Copies formatted text to clipboard; shows "✅ Copied!" for 2 seconds.
 
-- [ ] **PlayerHistorySheet — score trend** — The sheet shows a table of round-by-round scores. A small bar chart of scores per round (above the table) would make the progression more visual. Uses Recharts BarChart, same lib already imported.
+- [x] **[DONE] PlayerHistorySheet — score trend** — Fixed 2026-06-22. Small Recharts BarChart (56px tall) added above the round list showing score per round (color-coded: green=0, blue=low, amber=medium, red=high).
 
-- [ ] **History tab — tap session shows per-round scores but no summary row** — Expanded rounds don't show a final total row per player. Add a "Final Scores" summary at the bottom of the expanded section.
+- [x] **[DONE] History tab — final scores summary row** — Fixed 2026-06-22. "Final Scores" card added at bottom of expanded session showing all players sorted by total with winner (🏆 green) and eliminated (💀 red) highlights.
 
 ---
 
 ### ARCHITECTURE DEBT
 
-- [ ] **Operations layer not fully migrated** — `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` still call `db.*` directly. `useAppStore.ts` was migrated (zero db.* calls) but the pages were not. Low risk, consistency debt. Migrate when touching those files.
+- [x] **[DONE] Operations layer not fully migrated** — Fixed 2026-06-22. `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` all migrated to use `db/operations.ts` functions. Zero `db.*` calls in pages. Also added `updatePlayer()` and `deletePlayer()` to operations.
 
 - [ ] **`confirmRound()` is 170+ lines** — Handles round creation, DB writes, session update, elimination decision, winner decision, tie-breaker, overlay transitions, haptics, sound. Six responsibilities. Risky to touch. Should be split into helper functions. Candidate: extract `resolveRoundOutcome(totals, survivors, closerId)` that returns `"elimination" | "winner" | "tieWinner" | "normal"`.
 

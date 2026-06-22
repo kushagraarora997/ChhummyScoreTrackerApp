@@ -15,6 +15,14 @@ export function updatePlayerLastUsed(id: string): Promise<number> {
   return db.players.update(id, { lastUsedAt: Date.now() });
 }
 
+export function updatePlayer(id: string, data: Partial<Player>): Promise<number> {
+  return db.players.update(id, data);
+}
+
+export function deletePlayer(id: string): Promise<void> {
+  return db.players.delete(id);
+}
+
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 export function getActiveSession(): Promise<Session | undefined> {

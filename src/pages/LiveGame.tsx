@@ -99,6 +99,12 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
         </div>
       </div>
 
+      {rounds.length > 0 && store.ui.overlay.type === "none" && (
+        <div className="text-center text-[10px] opacity-25 tracking-wide mb-1">
+          Tap any card to see round history
+        </div>
+      )}
+
       {undoConfirm && (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-card border border-white/10 px-3 py-2">
           <span className="text-sm opacity-80">Undo Round {rounds.length}?</span>

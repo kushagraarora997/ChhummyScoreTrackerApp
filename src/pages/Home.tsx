@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "../store/useAppStore";
-import { db } from "../db";
 import type { Player } from "../db";
+import { getGlobalStats, getPlayers } from "../db/operations";
 
 interface HallEntry {
   name: string;
@@ -44,8 +44,8 @@ export default function Home({
   useEffect(() => {
     async function load() {
       const [statsRow, allPlayers] = await Promise.all([
-        db.stats.get("global"),
-        db.players.toArray(),
+        getGlobalStats(),
+        getPlayers(),
       ]);
       if (!statsRow) return;
       const t = statsRow.totals;

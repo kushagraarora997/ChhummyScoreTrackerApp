@@ -9,6 +9,7 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
   const hiddenCardRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
   const [shareErr, setShareErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { winnerId, summary } =
     s.ui.overlay.type === "winner"
@@ -82,6 +83,28 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
       }
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function handleCopyText() {
+    const lines = [
+      `${winner?.name} wins Chhummy! 🏆`,
+      `Always Agitated Aroras 🃏`,
+      `${summary.rounds} rounds • ${summary.closes} closes`,
+      "",
+      ...ranked.map((p, i) => {
+        const total = totals[p.id] ?? 0;
+        const isWinner = p.id === winnerId;
+        const isElim = total > 100;
+        return `${i + 1}. ${p.emoji ?? ""} ${p.name} — ${total} pts${isWinner ? " 🏆" : ""}${isElim ? " 💀" : ""}`;
+      }),
+    ];
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard not available
     }
   }
 
@@ -165,6 +188,12 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
           className="w-full py-3 rounded-2xl bg-success text-black font-semibold disabled:opacity-50"
         >
           {sharing ? "Saving..." : "📤 Share Result Card"}
+        </button>
+        <button
+          onClick={handleCopyText}
+          className="w-full py-3 rounded-2xl bg-card border border-white/10"
+        >
+          {copied ? "✅ Copied!" : "📋 Copy Text"}
         </button>
         <button
           onClick={onRematch}

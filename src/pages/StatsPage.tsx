@@ -2,8 +2,13 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend,
+  LineChart, Line,
 } from "recharts";
-import { db, Player, Session, Round } from "../db";
+import { Player, Session, Round } from "../db";
+import {
+  getGlobalStats, getAchievements, getCompletedSessions,
+  countRoundsBySession, getRoundsBySession, getPlayers,
+} from "../db/operations";
 
 interface H2HRecord {
   playerA: Player;
@@ -23,6 +28,7 @@ interface PlayerStats {
   avgScore: number;
   roundsPlayed: number;
   bestStreak: number;
+  gamesPlayed: number;
   achievements: Record<string, number>;
 }
 
@@ -34,13 +40,15 @@ interface SessionRow {
   roundCount: number;
 }
 
-const ACHIEVEMENT_META: Record<string, { emoji: string; label: string }> = {
-  ICE_COLD:     { emoji: "🥶", label: "Ice Cold" },
-  UNTOUCHABLE:  { emoji: "🛡️", label: "Untouchable" },
-  SURVIVOR:     { emoji: "💪", label: "Survivor" },
-  CLUTCH_MASTER:{ emoji: "🎯", label: "Clutch Master" },
-  PATSY:        { emoji: "🤡", label: "Patsy" },
+const ACHIEVEMENT_META: Record<string, { emoji: string; label: string; description: string }> = {
+  ICE_COLD:     { emoji: "🥶", label: "Ice Cold",     description: "Won with 0 total points across all rounds" },
+  UNTOUCHABLE:  { emoji: "🛡️", label: "Untouchable",  description: "Won without ever reaching 70+ points" },
+  SURVIVOR:     { emoji: "💪", label: "Survivor",      description: "Was at 85+ points but still came back to win" },
+  CLUTCH_MASTER:{ emoji: "🎯", label: "Clutch Master", description: "Closed the most rounds in a single session" },
+  PATSY:        { emoji: "🤡", label: "Patsy",         description: "First player to be eliminated in a game" },
 };
+
+const PLAYER_COLORS = ["#22C55E", "#F59E0B", "#EF4444", "#60A5FA", "#A78BFA", "#F472B6"];
 
 function formatDate(ts: number) {
   const d = new Date(ts);
@@ -52,6 +60,13 @@ function formatDate(ts: number) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
+function formatDuration(ms: number) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "<1m";
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
 export default function StatsPage({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("stats");
   const [rows, setRows] = useState<PlayerStats[]>([]);
@@ -61,18 +76,29 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
   const [playerMap, setPlayerMap] = useState<Map<string, Player>>(new Map());
   const [h2h, setH2h] = useState<H2HRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [selectedBadge, setSelectedBadge] = useState<string | null>(null);
+  const [recentRounds, setRecentRounds] = useState<Round[]>([]);
+  const [recentSession, setRecentSession] = useState<Session | undefined>(undefined);
 
   useEffect(() => {
     async function load() {
       const [statsRow, allPlayers, allAchievements, completedSessions] = await Promise.all([
-        db.stats.get("global"),
-        db.players.toArray(),
-        db.achievements.toArray(),
-        db.sessions.where("status").equals("completed").sortBy("startedAt"),
+        getGlobalStats(),
+        getPlayers(),
+        getAchievements(),
+        getCompletedSessions(),
       ]);
 
       const pMap = new Map(allPlayers.map((p) => [p.id, p]));
       setPlayerMap(pMap);
+
+      // Count completed games per player
+      const gamesPerPlayer: Record<string, number> = {};
+      for (const s of completedSessions) {
+        for (const pid of s.playerIds) {
+          gamesPerPlayer[pid] = (gamesPerPlayer[pid] || 0) + 1;
+        }
+      }
 
       // ── Stats rows ──────────────────────────────────────────────────
       const achievesByPlayer: Record<string, Record<string, number>> = {};
@@ -99,6 +125,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
             avgScore: t.averageScore[p.id] || 0,
             roundsPlayed: t.survivalRounds[p.id] || 0,
             bestStreak: t.streaks.bestCloseStreak[p.id] || 0,
+            gamesPlayed: gamesPerPlayer[p.id] || 0,
             achievements: achievesByPlayer[p.id] || {},
           });
         }
@@ -109,9 +136,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
       // ── History rows ─────────────────────────────────────────────────
       const sessionsDesc = [...completedSessions].reverse();
       const roundCounts = await Promise.all(
-        sessionsDesc.map((s) =>
-          db.rounds.where("sessionId").equals(s.id).count()
-        )
+        sessionsDesc.map((s) => countRoundsBySession(s.id))
       );
       setHistory(
         sessionsDesc.map((s, i) => {
@@ -152,6 +177,14 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
       h2hRows.sort((a, b) => b.total - a.total);
       setH2h(h2hRows);
 
+      // ── Recent session for trend chart ────────────────────────────
+      if (completedSessions.length > 0) {
+        const recent = completedSessions[completedSessions.length - 1];
+        const rounds = await getRoundsBySession(recent.id);
+        setRecentRounds(rounds);
+        setRecentSession(recent);
+      }
+
       setLoaded(true);
     }
     load();
@@ -162,10 +195,7 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
       setExpandedSession(null);
       return;
     }
-    const rounds = await db.rounds
-      .where("sessionId")
-      .equals(sessionId)
-      .sortBy("number");
+    const rounds = await getRoundsBySession(sessionId);
     setExpandedRounds(rounds);
     setExpandedSession(sessionId);
   }
@@ -178,6 +208,17 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
   }));
 
   const winsChartData = chartData.filter((d) => d.Wins > 0);
+
+  // Recent session trend chart data
+  const recentPlayerIds = recentSession?.playerIds ?? [];
+  const recentChartData = recentRounds.map((r) => {
+    const entry: Record<string, number | string> = { round: `R${r.number}` };
+    for (const pid of recentPlayerIds) {
+      const p = playerMap.get(pid);
+      if (p) entry[p.name] = r.totals[pid] ?? 0;
+    }
+    return entry;
+  });
 
   return (
     <div className="min-h-screen bg-background text-text pb-12">
@@ -239,26 +280,42 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                       <div className="grid grid-cols-3 gap-2 text-center mb-3">
                         <StatBox label="Wins" value={r.wins} highlight={r.wins > 0} />
                         <StatBox label="Closes" value={r.closes} />
+                        <StatBox label="Games" value={r.gamesPlayed} />
                         <StatBox label="Elim." value={r.eliminations} tone="danger" />
                         <StatBox label="Avg Score" value={Number.isInteger(r.avgScore) ? r.avgScore : r.avgScore.toFixed(1)} />
-                        <StatBox label="Rounds" value={r.roundsPlayed} />
                         <StatBox label="Best Streak" value={r.bestStreak} />
                       </div>
 
                       {Object.keys(r.achievements).length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {Object.entries(r.achievements).map(([key, count]) => {
+                        <div className="mt-1">
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(r.achievements).map(([key, count]) => {
+                              const meta = ACHIEVEMENT_META[key];
+                              if (!meta) return null;
+                              const badgeId = `${r.player.id}::${key}`;
+                              const isActive = selectedBadge === badgeId;
+                              return (
+                                <span
+                                  key={key}
+                                  onClick={() => setSelectedBadge(isActive ? null : badgeId)}
+                                  className={`px-2 py-1 rounded-full text-xs border cursor-pointer transition ${
+                                    isActive ? "bg-white/15 border-white/30" : "bg-elevated border-white/10"
+                                  }`}
+                                >
+                                  {meta.emoji} {meta.label}{count > 1 ? ` ×${count}` : ""}
+                                </span>
+                              );
+                            })}
+                          </div>
+                          {selectedBadge?.startsWith(`${r.player.id}::`) && (() => {
+                            const key = selectedBadge.split("::")[1];
                             const meta = ACHIEVEMENT_META[key];
-                            if (!meta) return null;
-                            return (
-                              <span
-                                key={key}
-                                className="px-2 py-1 rounded-full text-xs bg-elevated border border-white/10"
-                              >
-                                {meta.emoji} {meta.label}{count > 1 ? ` ×${count}` : ""}
-                              </span>
-                            );
-                          })}
+                            return meta ? (
+                              <div className="text-xs opacity-55 px-1 pt-2">
+                                {meta.emoji} {meta.description}
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
                       )}
                     </div>
@@ -298,7 +355,6 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                             <span className="text-2xl">{r.playerB.emoji ?? "🙂"}</span>
                           </div>
                         </div>
-                        {/* Win bar */}
                         <div className="h-2 rounded-full bg-elevated overflow-hidden flex">
                           <div className="h-full bg-success/70 rounded-l-full transition-all" style={{ width: `${fracA * 100}%` }} />
                           <div className="h-full bg-white/20 rounded-r-full flex-1" />
@@ -331,6 +387,9 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                             </div>
                             <div className="text-xs opacity-50 mt-0.5">
                               {h.playerNames.join(", ")} • {h.roundCount} rounds
+                              {h.session.endedAt
+                                ? ` • ${formatDuration(h.session.endedAt - h.session.startedAt)}`
+                                : ""}
                             </div>
                           </div>
                           <div className="text-right">
@@ -374,6 +433,35 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                               );
                             })}
                           </div>
+
+                          {/* Final Scores summary */}
+                          {expandedRounds.length > 0 && (() => {
+                            const lastRound = expandedRounds[expandedRounds.length - 1];
+                            return (
+                              <div className="rounded-xl bg-elevated/50 border border-white/8 p-3 mt-3">
+                                <div className="text-xs font-semibold mb-2 opacity-50 uppercase tracking-wide">Final Scores</div>
+                                {[...h.session.playerIds]
+                                  .map((pid) => ({ pid, total: lastRound.totals[pid] ?? 0 }))
+                                  .sort((a, b) => a.total - b.total)
+                                  .map(({ pid, total }, i) => {
+                                    const p = playerMap.get(pid);
+                                    const isWinner = pid === h.session.winnerId;
+                                    const isElim = total > 100;
+                                    return (
+                                      <div key={pid} className="flex items-center justify-between text-xs py-1 border-b border-white/5 last:border-0">
+                                        <span className="flex items-center gap-1.5">
+                                          <span className="opacity-40 w-4 tabular-nums">{i + 1}</span>
+                                          <span>{p?.emoji} {p?.name}</span>
+                                        </span>
+                                        <span className={`font-bold tabular-nums ${isWinner ? "text-success" : isElim ? "text-danger" : "opacity-70"}`}>
+                                          {total} pts {isWinner ? "🏆" : isElim ? "💀" : ""}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
@@ -390,6 +478,42 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
                 </div>
               ) : (
                 <div className="space-y-6">
+                  {/* Score trend for most recent game */}
+                  {recentChartData.length > 0 && recentSession && (
+                    <div className="rounded-2xl bg-card border border-white/5 p-4">
+                      <div className="text-sm font-semibold mb-0.5 opacity-70 uppercase tracking-wide">
+                        Score Trend — Last Game
+                      </div>
+                      <div className="text-[11px] opacity-35 mb-4">Running totals over rounds</div>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <LineChart data={recentChartData} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
+                          <XAxis dataKey="round" tick={{ fill: "#888", fontSize: 10 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fill: "#888", fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 12, fontSize: 12 }}
+                            cursor={{ stroke: "rgba(255,255,255,0.08)" }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 11, opacity: 0.6 }} />
+                          {recentPlayerIds.map((pid, i) => {
+                            const p = playerMap.get(pid);
+                            if (!p) return null;
+                            return (
+                              <Line
+                                key={pid}
+                                type="monotone"
+                                dataKey={p.name}
+                                stroke={PLAYER_COLORS[i % PLAYER_COLORS.length]}
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{ r: 4 }}
+                              />
+                            );
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
                   <div className="rounded-2xl bg-card border border-white/5 p-4">
                     <div className="text-sm font-semibold mb-4 opacity-70 uppercase tracking-wide">
                       Wins per Player

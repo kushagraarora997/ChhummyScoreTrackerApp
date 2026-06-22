@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { BarChart, Bar, Cell, ResponsiveContainer, XAxis, Tooltip } from "recharts";
 import { useAppStore } from "../../store/useAppStore";
 
 export default function PlayerHistorySheet({
@@ -61,6 +62,29 @@ export default function PlayerHistorySheet({
         {rows.length === 0 ? (
           <div className="text-center opacity-50 py-8 text-sm italic">No rounds yet</div>
         ) : (
+          <>
+          {rows.length > 1 && (
+            <div className="mb-4">
+              <div className="text-[10px] opacity-35 mb-1 uppercase tracking-wide">Score per round</div>
+              <ResponsiveContainer width="100%" height={56}>
+                <BarChart data={rows.map((r) => ({ name: `#${r.number}`, score: r.score }))} margin={{ top: 0, right: 0, bottom: 0, left: -32 }}>
+                  <XAxis dataKey="name" tick={{ fill: "#555", fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 8, fontSize: 11 }}
+                    cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                  />
+                  <Bar dataKey="score" radius={[3, 3, 0, 0]}>
+                    {rows.map((r) => (
+                      <Cell
+                        key={r.number}
+                        fill={r.score === 0 ? "#22C55E" : r.score <= 10 ? "#60A5FA" : r.score >= 30 ? "#EF4444" : "#F59E0B"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
           <div className="space-y-2">
             {rows.map((r) => {
               const dangerTotal = r.total > 100;
@@ -92,6 +116,7 @@ export default function PlayerHistorySheet({
               );
             })}
           </div>
+          </>
         )}
       </motion.div>
     </>

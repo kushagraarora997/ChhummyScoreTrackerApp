@@ -198,6 +198,11 @@ export const useAppStore = create<AppState>()(
     },
 
     async newSession(playerIds) {
+      const existing = get().activeSession;
+      if (existing?.status === "active") {
+        await putSession({ ...existing, status: "abandoned", endedAt: Date.now() });
+      }
+
       const session: Session = {
         id: nanoid(),
         startedAt: Date.now(),
