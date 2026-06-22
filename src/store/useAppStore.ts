@@ -111,7 +111,7 @@ async function writeStats(session: Session, allRounds: Round[]) {
   let firstOutRound = Infinity;
   for (const pid of session.playerIds) {
     for (let i = 0; i < allRounds.length; i++) {
-      if ((allRounds[i].totals[pid] || 0) >= 100) {
+      if ((allRounds[i].totals[pid] || 0) > 100) {
         if (i < firstOutRound) { firstOutRound = i; firstOut = pid; }
         break;
       }
@@ -591,5 +591,5 @@ export const useAppStore = create<AppState>()(
         tempScores: {},
       });
     },
-  }))
+  }), { enabled: import.meta.env.DEV })
 );

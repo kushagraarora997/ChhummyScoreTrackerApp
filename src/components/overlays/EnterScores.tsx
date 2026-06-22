@@ -18,9 +18,10 @@ export default function EnterScores() {
     store.ui.overlay.type === "enterScores" ? store.ui.overlay.closerId : "";
   const totals = store.getTotals();
 
-  const players = store.players.filter(
-    (p) => session.playerIds.includes(p.id) && (totals[p.id] || 0) <= 100
-  );
+  const playerMap = new Map(store.players.map((p) => [p.id, p]));
+  const players = session.playerIds
+    .map((id) => playerMap.get(id))
+    .filter((p): p is (typeof store.players)[0] => !!p && (totals[p.id] || 0) <= 100);
 
   function handleConfirm() {
     const missing = players.some((p) => store.tempScores[p.id] === undefined);

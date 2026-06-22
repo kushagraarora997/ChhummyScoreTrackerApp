@@ -12,7 +12,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
   const store = useAppStore();
   const session = store.activeSession;
   const rounds = store.rounds;
-  const totals = store.getTotals();
+  const totals = useMemo(() => store.getTotals(), [rounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [redoConfirm, setRedoConfirm] = useState(false);
   const [historyPlayerId, setHistoryPlayerId] = useState<string | null>(null);
