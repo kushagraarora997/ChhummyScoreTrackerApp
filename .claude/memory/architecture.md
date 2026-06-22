@@ -250,3 +250,15 @@ metadata:
 - Firestore SDK immediately applies `setDoc` to its local cache BEFORE network round-trip. This triggers `onSnapshot` on the same device that wrote the doc — potentially BEFORE `confirmRound()`'s `set()` runs.
 - Initial naive check `if (rounds.some((r) => r.id === round.id)) return` passes (rounds=[] at start of ingest), then `await putRound` completes AFTER `confirmRound`'s `set({ rounds: [round1] })` runs, so the ingest's functional `set((s) => [...s.rounds, round])` appends a DUPLICATE (s.rounds already has round1).
 - Fix: double-check INSIDE the functional setter: `set((s) => { if (s.rounds.some(...)) return s; return {...} })` — the functional setter always has the latest state at call time, so it won't add a round that another set() already added.
+
+**KNOWN BUG — Undo + Firebase "modified" event re-adds round (NOT fixed, 2026-06-23):**
+- Firestore fires onSnapshot TWICE per write: (1) "added" with `hasPendingWrites=true` (local cache, immediate), (2) "modified" with `hasPendingWrites=false` (server confirmation, ~1-4s later)
+- Both events hit `ingestCloudRound`. If the round is still in state, the double-check returns early for both — safe.
+- BUT if `undoLastRound()` runs BETWEEN event 1 and event 2: event 2 fires after undo, round is not in state, double-check passes, round gets re-added. UI shows Round 2 again after undo.
+- Fix options: (a) filter `hasPendingWrites` events in `subscribeToRounds` — only process confirmed writes; (b) maintain a `deletedRoundIds: Set<string>` in store and skip re-ingestion; (c) handle `change.type === "removed"` to undo state (would also fix propagation issue below).
+
+**KNOWN LIMITATION — Undo doesn't propagate to remote devices (2026-06-23):**
+- `undoLastRound()` calls `deleteRoundFromCloud(deleteDoc)` which fires a Firestore "removed" event.
+- `subscribeToRounds` only handles `change.type === "added" | "modified"` — "removed" is silently ignored.
+- Remote devices stay on their current Round N; they never see the undo. Confirmed in Test 18.
+- Fix: handle `change.type === "removed"` in `subscribeToRounds` and add a `removeIngestedRound(roundId)` action in the store that filters the round out of `state.rounds`.
