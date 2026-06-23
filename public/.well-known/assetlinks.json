@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.chhummy.tracker",
+    "sha256_cert_fingerprints": [
+      "52:34:1C:7A:5C:CA:C6:30:8D:18:44:7B:3C:7A:19:3C:A8:68:CD:11:C2:28:A4:0C:8D:3B:8C:BC:5E:88:67:3C"
+    ]
+  }
+}]

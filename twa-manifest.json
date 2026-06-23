@@ -1,0 +1,30 @@
+{
+  "packageId": "com.chhummy.tracker",
+  "host": "chhummy-score-tracker-app-tu9q.vercel.app",
+  "name": "Chhummy Tracker",
+  "launcherName": "Chhummy",
+  "display": "standalone",
+  "themeColor": "#050505",
+  "navigationColor": "#050505",
+  "backgroundColor": "#050505",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://chhummy-score-tracker-app-tu9q.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://chhummy-score-tracker-app-tu9q.vercel.app/icons/maskable-512.png",
+  "monochromeIconUrl": "https://chhummy-score-tracker-app-tu9q.vercel.app/icons/icon-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "chhummy.keystore",
+    "alias": "chhummy"
+  },
+  "appVersionCode": 1,
+  "appVersionName": "1.0.0",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://chhummy-score-tracker-app-tu9q.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "orientation": "portrait",
+  "minSdkVersion": 21,
+  "targetSdkVersion": 32
+}

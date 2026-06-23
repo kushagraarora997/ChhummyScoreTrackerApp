@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+
+# Android keystore + secrets (never commit)
+*.keystore
+chhummy-keystore-b64.txt
+android/local.properties
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

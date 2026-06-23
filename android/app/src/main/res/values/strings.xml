@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chhummy Tracker</string>
+    <string name="asset_statements">
+        [{"include": "https://chhummy-score-tracker-app-tu9q.vercel.app/.well-known/assetlinks.json"}]
+    </string>
+</resources>
