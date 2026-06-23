@@ -7,6 +7,17 @@ metadata:
   originSessionId: 03a24291-4589-4a87-9cd3-a3a1b0099e16
 ---
 
+## Quick Reference (latest commit: 5a8aeb4, 2026-06-23)
+
+**Dev server:** `npm run dev` → http://localhost:5173  
+**Build:** `npm run build` (TypeScript strict + Vite, 1600KB bundle, zero errors)  
+**Deploy:** `git push origin main` → auto-deploys to Vercel  
+**Firebase project:** `chummyscoretracker` | API key: `AIzaSyCZDaVKefU0UwBy-y8Kj5FE2t3eJKhW1gs`  
+**Room code localStorage key:** `chhummy-room-code` (NOT `chhummy_room_code`)  
+**Test dir:** `C:\Users\kusha\AppData\Local\Temp\pw-test\` — run any `.mjs` with `node filename.mjs`
+
+---
+
 **Routing:** Manual `useState<Route>` in `src/app/App.tsx`. Routes: splash | home | setup | live | stats. No React Router. Simple, works for this app size.
 
 **State:** Single Zustand store `useAppStore` in `src/store/useAppStore.ts`. Mixes UI overlay state, game state, DB operations. Module-level `writeStats()` function handles all stat + achievement writes atomically on game completion.
@@ -34,7 +45,8 @@ metadata:
 - `src/db/index.ts` — schema definitions
 
 **DB operations layer (fully migrated 2026-06-22, updated 2026-06-23):**
-- `src/db/operations.ts` — 19 named functions: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `bulkPutRounds` (new — caches cloud rounds), `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement`
+- `src/db/operations.ts` — 20 named functions: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `putRoundLocal` (Dexie-only, no Firestore re-sync — used by ingestCloudRound), `bulkPutRounds` (caches cloud rounds), `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement`
+- `deleteRound` signature changed (2026-06-23, batch-16): takes `Pick<Round, "id"|"sessionId"|"number">` not just `id: string` — full round needed to compute composite Firestore key for delete
 - `useAppStore.ts` imports from `../db/operations` — zero `db.*` calls in the store
 - `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` all migrated — zero `db.*` calls in any page
 - `updatePlayer(id, Partial<Player>)` and `deletePlayer(id)` added 2026-06-22 for player management feature
@@ -233,6 +245,27 @@ metadata:
 
 **Watch out:**
 - `LiveGame.tsx` previously had U+201D curly right double quotes in JSX className attrs. Fixed 2026-06-21. Check for smart quotes (`cat -v`) if builds look wrong.
+
+**Firestore data model (as of commit 5a8aeb4):**
+```
+families/{familyId}/
+  players/{playerId}          — doc key = player.id (nanoid)
+  sessions/{sessionId}        — doc key = session.id (nanoid)
+  rounds/{sessionId}_{number} — doc key = COMPOSITE (not round.id!)
+  stats/global                — single doc
+  achievements/{achievementId} — doc key = achievement.id (nanoid)
+```
+CRITICAL: rounds use `${sessionId}_${number}` as the Firestore document key, NOT `round.id`.
+This is intentional — prevents two devices from creating duplicate docs for the same round number.
+`round.id` (nanoid) is stored as a FIELD inside the document, not as the key.
+
+**DOUBLE-WRITE FIX (2026-06-23, commit 5a8aeb4) — RESOLVED:**
+- Root cause: two devices confirming the same round before sync arrived each generated a unique nanoid round ID → `syncRound` used `round.id` as Firestore doc key → TWO separate Firestore docs for same round number → `ingestCloudRound` deduped by ID only → duplicate Round N in state
+- Fix 1 (Firestore layer): `syncRound` now writes to composite key `${round.sessionId}_${round.number}` — last-write-wins means at most ONE doc per round number ever exists in Firestore
+- Fix 2 (client dedup): `ingestCloudRound` added second guard: `if (existing.some(r => r.sessionId === round.sessionId && r.number === round.number)) return` — drops any incoming round whose number already exists locally
+- Fix 3 (avoid circular sync): `ingestCloudRound` now uses `putRoundLocal` (Dexie-only) instead of `putRound` (which also re-synced to Firestore) — removes N×M unnecessary Firestore writes when 6 devices each re-upload received rounds
+- Fix 4 (delete): `deleteRoundFromCloud` signature changed to `(familyId, sessionId, roundNumber)` so undo correctly deletes the composite-key Firestore doc
+- Verified by DW1-DW6 tests (39/39 pass) including: composite key format confirmed via REST API, 3-device bidirectional, late joiner, injected fake duplicate rejected, 6-device fan-out, alternating A/B play
 
 **Firebase Phase 2 — real-time sync (implemented 2026-06-23, commit dd6a254):**
 - `subscribeToRounds(familyId, sessionId, onRound)` + `subscribeToSession(familyId, sessionId, onSession)` in `src/lib/firebaseSync.ts` — returns unsubscribe fn; uses `onSnapshot` with `docChanges()` filtering for "added"|"modified"

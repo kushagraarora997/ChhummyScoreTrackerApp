@@ -153,17 +153,70 @@ New selectors discovered while building `readme-screenshots.mjs`:
 - Reliable signal: `waitForFunction(() => !document.querySelector("input[maxlength='6']"))` fires when join modal closes (after pullFromCloud completes)
 - Then `sleep(2000)` for Dexie writes to settle before navigating to Stats
 
-## Known Test Gaps (as of 2026-06-22 review)
+## Module-by-Module Tests (Batch 15 — 2026-06-23)
+
+**File:** `C:\Users\kusha\AppData\Local\Temp\pw-test\module-tests.mjs`
+**Result:** 80/80 passed ✅  
+**Duration:** ~346s
+
+**Coverage:**
+- Module 1 (12): Score entry — chip set validation, numpad 60-cap (digit-level reject), backspace, preview formula, skull at 101+, error on missing score ✅
+- Module 2 (5): Round boundaries — 100 safe, 101 eliminated, all-out lowest wins (non-closer), all-out tie (closer wins), eliminated player disabled in WhoClosed ✅
+- Module 3 (5): Undo/redo — 3 sequential undos, total revert, redo banner lifecycle, safe no-op at round 0 ✅
+- Module 4 (7): Player management — maxlength 20, duplicate prevention (case-insensitive), edit/delete, 6-player cap ✅
+- Module 5 (5): Achievements — ICE_COLD, UNTOUCHABLE, SURVIVOR, CLUTCH_MASTER unique/tie, history expand accuracy ✅
+
+**Bugs Found:** None — all assertions passed on production code.
+
+**Key Discoveries:**
+- Eliminated players ARE shown in Who Closed but `disabled` — behavior is intentional (CLAUDE.md was ambiguous)
+- Numpad 60-cap is digit-level: typing "6" then "1" immediately rejects "1" (`Number("61") > 60`)
+- After numpad ✓ click, must `waitForFunction(() => !document.querySelector('[style*="z-index: 9999"]'))` before next interaction
+- Available player list is newest-first: `editButtons[0]` = most recently added player's edit button
+
+## Double-Write Prevention Tests (Batch 16 — 2026-06-23)
+
+**File:** `C:\Users\kusha\AppData\Local\Temp\pw-test\double-write-tests.mjs`
+**Result:** 39/39 passed ✅
+**Commit:** 5a8aeb4
+
+**Coverage:**
+- DW1: Composite Firestore doc ID — after Round 1, verify exactly 1 doc in Firestore with composite key `{sessionId}_1` ✅
+- DW2: 3-device bidirectional — A plays R1 (B+C receive), B plays R2 (A+C receive) — all 3 devices have exactly 2 rounds ✅
+- DW3: Late joiner — A plays 2 rounds before B joins; B gets exactly 2 via `pullFromCloud`, none duplicated ✅
+- DW4: Injected duplicate — REST API writes fake Round 1 with different doc ID; `ingestCloudRound` drops it (number dedup); A stays at "Round 2" ✅
+- DW5: 6-device fan-out — A plays R1 with all 6 players; B-F all receive exactly 1 round; Firestore has exactly 1 doc ✅
+- DW6: Alternating play — A plays R1, B plays R2, A plays R3; both devices have 3 rounds; Firestore has 3 composite-key docs ✅
+
+**CRITICAL — Create Room before startGame in Firebase tests:**
+- The "🏠 Create Room" button is on the **Home page**, not LiveGame
+- Room code appears in `.font-mono.font-black` element after clicking Create Room
+- Correct pattern: `goHome(page)` → `createRoom(page)` → `startGame(page, players)` → play rounds
+- If you call `createRoom` AFTER `startGame`, it fails (Create Room button not visible on LiveGame)
+- `pullFromCloud` completes when the join input disappears: `waitForFunction(() => !document.querySelector("input[placeholder='Room code']"))`
+- After joining, Home shows "🎯 Continue Battle" (not "Resume") → click to navigate to LiveGame
+
+**Firestore REST API pattern (used in DW tests):**
+```javascript
+const FIREBASE_API_KEY = "AIzaSyCZDaVKefU0UwBy-y8Kj5FE2t3eJKhW1gs";
+const FIREBASE_PROJECT = "chummyscoretracker";
+
+async function firestoreList(path) {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/${path}?key=${FIREBASE_API_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.documents || [];
+}
+function docNameToId(name) { return name.split("/").pop(); }
+```
+
+## Known Test Gaps (remaining as of 2026-06-23)
 
 | Gap | Risk |
 |---|---|
-| All-players-hit-100 same round (tie-breaker path in `confirmRound()`) | Medium — untested code path |
-| Achievements written correctly after game end | Medium — zero coverage |
-| Stats accumulation across multiple sessions | Medium |
-| Score cap at 60 via numpad (type 61, verify rejected) | Low |
-| PlayerSetup: max 6 players enforcement | Low |
-| Player name maxLength=20 | Low |
 | Share card captures correct player data | Low |
+| Stats accumulation across multiple sessions | Low |
 
 ## Test Report Files
 

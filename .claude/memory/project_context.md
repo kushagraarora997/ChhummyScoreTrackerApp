@@ -7,6 +7,22 @@ metadata:
   originSessionId: 03a24291-4589-4a87-9cd3-a3a1b0099e16
 ---
 
+## Current State (as of 2026-06-23, commit 5a8aeb4)
+
+**Everything is built and deployed.** Latest commit `5a8aeb4` on `main`, auto-deployed to Vercel.
+All known bugs fixed. No open critical issues.
+
+Test status: **266+ tests passing** across all suites (batch-08 through batch-16, Firebase E2E, multi-device E2E, comprehensive scenarios, module tests, double-write prevention tests).
+
+Firebase sync is COMPLETE and LIVE — family can play on 2–6 phones simultaneously with real-time round sync, no duplicate writes, and correct late-joiner behavior.
+
+**Known remaining limitations (documented, not asked to fix):**
+1. Undo doesn't propagate to remote devices (Firestore "removed" events not handled in `subscribeToRounds`)
+2. Undo+Firebase "modified" event race: if undo happens between two Firestore onSnapshot events, the undone round may reappear on the undoing device
+3. Failed Firestore writes are silently dropped (no offline retry queue)
+
+---
+
 App is "Chhummy Tracker" — premium mobile-first PWA for the Arora family's card game nights.
 Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagraarora997/ChhummyScoreTrackerApp).
 
@@ -115,9 +131,11 @@ UI polish also applied (same session):
 - Content: game rules, all features, achievement table, tech stack, local dev, project structure
 - Screenshots show full game flow: home+HoF, setup, live tension, who-closed, enter-scores, elimination, winner, stats (all 3 tabs)
 
-**What's NOT Built:**
-- Weekly/Monthly dashboard (time-series Recharts — backlog)
-- Cross-device sync undo propagation (known limitation — see KNOWN LIMITATION above)
+**What's NOT Built / Remaining Backlog:**
+- Spring Boot + PostgreSQL backend (Repo 2 plan — not started; see TODO.md Modules 1–10)
+- Cross-device sync undo propagation (known limitation — undo on one device doesn't propagate to others)
+- Undo + Firebase "modified" re-add race (known bug — if undo between two Firestore events, round re-added)
+- Weekly/Monthly dashboard (Recharts time-series — low priority backlog)
 
 **Firebase Setup Status (2026-06-23 — PHASE 1 COMPLETE ✅):**
 - Firebase project: `chummyscoretracker` (created via Firebase console, project number 633100813203)
@@ -143,6 +161,13 @@ UI polish also applied (same session):
 - StatsPage backlog: Longest Game stat, Fastest Win stat, Weekly Chart (BarChart by week), "Clear All Data" button
 - "● Live" indicator on Home when room code is set; also visible on LiveGame hero
 - Phase 2 E2E tests: 16/16 features-e2e passing (commit 3d174db); 34/34 multi-device E2E passing
+
+**Double-Write Prevention COMPLETE (2026-06-23, commit 5a8aeb4) ✅:**
+- Fixed: two devices confirming the same round before sync → duplicate Round N in state
+- Composite Firestore key `{sessionId}_{roundNumber}` prevents two docs for same round (server-side)
+- Number-based dedup in `ingestCloudRound` as defense-in-depth (client-side)
+- `putRoundLocal` avoids circular Firestore re-syncs on receive
+- Batch-16 tests: 39/39 pass (DW1–DW6) covering 6-device fan-out, late joiner, injected duplicate, alternating play
 
 **KNOWN BUG (Firebase race, not yet fixed):**
 - Undo + Firebase "modified" event race: `setDoc` fires TWO onSnapshot events per write.
