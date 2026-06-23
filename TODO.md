@@ -500,6 +500,46 @@ Sab files padhe. Neeche sab naya kaam.
 
 ---
 
+## Android APK (Researched 2026-06-23)
+
+App is already a valid PWA (manifest + service worker + HTTPS on Vercel). Best path: **TWA via PWABuilder** — wraps the live Vercel URL in a Trusted Web Activity shell with no browser chrome. No code changes needed.
+
+**Why TWA over Capacitor:**
+- Capacitor copies the built web assets into a native WebView — needs Android Studio, more setup, build on every release.
+- TWA (via PWABuilder) wraps the live Vercel URL — update the web app, APK auto-shows the new version. Zero release overhead after initial APK creation. Google Play accepts TWA APKs.
+
+**Prerequisites (one-time):**
+- [ ] Java JDK installed (keytool comes with it)
+- [ ] Android Studio or just the `bundletool` CLI (for signing)
+- [ ] A signing keystore: `keytool -genkeypair -v -keystore chhummy.keystore -alias chhummy -keyalg RSA -keysize 2048 -validity 10000`
+
+**Steps — Option A: PWABuilder (no-code, recommended):**
+1. Go to pwabuilder.com → enter `https://chhummy-tracker.vercel.app`
+2. It validates: manifest icons, service worker, HTTPS — all should pass already
+3. Click "Package for Stores" → Android → Download zip
+4. Zip contains a pre-built Android Studio project + instructions
+5. Build APK: `./gradlew assembleRelease` inside the unzipped project
+6. Sign with your keystore: `apksigner sign --ks chhummy.keystore app-release.apk`
+7. Add Digital Asset Links file to verify domain ownership (required for TWA):
+   - PWABuilder generates the `assetlinks.json` content based on your keystore fingerprint
+   - Host at `https://chhummy-tracker.vercel.app/.well-known/assetlinks.json`
+   - In Vite: add the file to `public/.well-known/assetlinks.json` → auto-served by Vercel
+8. Rebuild and redeploy Vercel with the `assetlinks.json` file
+
+**Steps — Option B: Bubblewrap CLI (same result, more control):**
+```bash
+npm i -g @bubblewrap/cli
+bubblewrap init --manifest https://chhummy-tracker.vercel.app/manifest.webmanifest
+bubblewrap build
+```
+Produces a signed APK directly.
+
+**Result:** A proper `.apk` file installable on any Android 5.0+ device. No Play Store required — share directly via WhatsApp/Google Drive. Family installs it from the file.
+
+**Note:** App icons must be at least 512×512 (already done ✓). The `maskable-512.png` is needed for adaptive icons (already in manifest ✓).
+
+---
+
 ## UI Audit — Self-Review (2026-06-21, Playwright visual pass)
 
 32 screenshots captured across all screens. Issues found, prioritised below.
