@@ -1,6 +1,6 @@
 import {
   doc, setDoc, deleteDoc,
-  getDocs, getDoc, collection, query, where, onSnapshot,
+  getDocs, getDoc, collection, query, where, onSnapshot, orderBy, limit,
 } from "firebase/firestore";
 import { firestore } from "./firebase";
 import { db } from "../db";
@@ -76,10 +76,19 @@ export async function pullFromCloud(familyId: string): Promise<{
   playerCount: number;
   hasActiveSession: boolean;
 }> {
-  // Fetch ALL sessions (not just active) so History tab works on joined devices
-  const [playersSnap, allSessionsSnap, statsSnap, achievementsSnap] = await Promise.all([
+  // Fetch players, last 30 completed sessions, active session, stats, achievements
+  const [playersSnap, completedSnap, activeSnap, statsSnap, achievementsSnap] = await Promise.all([
     getDocs(collection(firestore, base(familyId), "players")),
-    getDocs(collection(firestore, base(familyId), "sessions")),
+    getDocs(query(
+      collection(firestore, base(familyId), "sessions"),
+      where("status", "==", "completed"),
+      orderBy("startedAt", "desc"),
+      limit(30),
+    )),
+    getDocs(query(
+      collection(firestore, base(familyId), "sessions"),
+      where("status", "==", "active"),
+    )),
     getDoc(doc(firestore, base(familyId), "stats", "global")),
     getDocs(collection(firestore, base(familyId), "achievements")),
   ]);
@@ -87,11 +96,14 @@ export async function pullFromCloud(familyId: string): Promise<{
   const players = playersSnap.docs.map((d) => d.data() as Player);
   if (players.length > 0) await db.players.bulkPut(players);
 
-  const allSessions = allSessionsSnap.docs.map((d) => d.data() as Session);
+  const allSessions = [
+    ...completedSnap.docs.map((d) => d.data() as Session),
+    ...activeSnap.docs.map((d) => d.data() as Session),
+  ];
   if (allSessions.length > 0) await db.sessions.bulkPut(allSessions);
 
   // Only eagerly fetch rounds for the active session (to keep join fast)
-  const activeSession = allSessions.find((s) => s.status === "active");
+  const activeSession = activeSnap.docs[0]?.data() as Session | undefined;
   let hasActiveSession = false;
   if (activeSession) {
     hasActiveSession = true;
@@ -156,6 +168,23 @@ export function subscribeToRounds(
       });
     },
     (e) => console.warn("[firebase] subscribeToRounds error", e)
+  );
+}
+
+export function subscribeToPlayers(
+  familyId: string,
+  onPlayer: (player: Player) => void,
+): () => void {
+  return onSnapshot(
+    collection(firestore, base(familyId), "players"),
+    (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added" || change.type === "modified") {
+          onPlayer(change.doc.data() as Player);
+        }
+      });
+    },
+    (e) => console.warn("[firebase] subscribeToPlayers error", e)
   );
 }
 

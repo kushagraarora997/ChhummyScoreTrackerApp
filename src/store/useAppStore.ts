@@ -7,7 +7,7 @@ import {
   getPlayers, getActiveSession, getRoundsBySession,
   addSession, putSession,
   addRound, putRound, putRoundLocal, deleteRound, deleteRoundLocal,
-  writeStats,
+  updatePlayer, writeStats,
 } from "../db/operations";
 import { getRoomCode } from "../lib/roomCode";
 import { pullStatsFromCloud } from "../lib/firebaseSync";
@@ -75,6 +75,7 @@ interface AppState {
 
   ingestCloudRound: (round: Round) => Promise<void>;
   ingestCloudSession: (session: Session) => Promise<void>;
+  ingestCloudPlayer: (player: Player) => Promise<void>;
   removeIngestedRound: (roundId: string) => Promise<void>;
 }
 
@@ -435,6 +436,13 @@ export const useAppStore = create<AppState>()(
         if (s.rounds.some((r) => r.sessionId === round.sessionId && r.number === round.number)) return s;
         return { rounds: [...s.rounds, round].sort((a, b) => a.number - b.number) };
       });
+    },
+
+    async ingestCloudPlayer(player) {
+      await updatePlayer(player.id, player);
+      set((s) => ({
+        players: s.players.map((p) => (p.id === player.id ? { ...p, ...player } : p)),
+      }));
     },
 
     // Bug 2 fix: remove a round that was undone on another device (Firestore "removed" event)

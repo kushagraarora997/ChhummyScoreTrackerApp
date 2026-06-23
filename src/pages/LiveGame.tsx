@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { getRoomCode } from "../lib/roomCode";
-import { subscribeToRounds, subscribeToSession } from "../lib/firebaseSync";
+import { subscribeToRounds, subscribeToSession, subscribeToPlayers } from "../lib/firebaseSync";
 import WhoClosed from "../components/overlays/WhoClosed";
 import EnterScores from "../components/overlays/EnterScores";
 import EliminationOverlay from "../components/overlays/EliminationOverlay";
@@ -25,6 +25,7 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
   const declareWinner = useAppStore((s) => s.declareWinner);
   const ingestCloudRound = useAppStore((s) => s.ingestCloudRound);
   const ingestCloudSession = useAppStore((s) => s.ingestCloudSession);
+  const ingestCloudPlayer = useAppStore((s) => s.ingestCloudPlayer);
   const removeIngestedRound = useAppStore((s) => s.removeIngestedRound);
 
   const totals = useMemo(() => getTotals(), [rounds]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -41,7 +42,8 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
       (round) => removeIngestedRound(round.id), // Bug 2 fix: propagate undo to remote devices
     );
     const unsubSession = subscribeToSession(roomCode, session.id, ingestCloudSession);
-    return () => { unsubRounds(); unsubSession(); };
+    const unsubPlayers = subscribeToPlayers(roomCode, ingestCloudPlayer);
+    return () => { unsubRounds(); unsubSession(); unsubPlayers(); };
   }, [session?.id, roomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const players = useMemo(() => {
