@@ -106,7 +106,8 @@ To close, a player must have:
 - **Create Room** — generates a 6-character code and pushes the game to Firebase Firestore
 - **Join Room** — any family member enters the code to see the live game on their own phone
 - All rounds sync in real-time via `onSnapshot` — no refresh needed
-- Tested with 2, 3, and 4 devices simultaneously
+- **Double-write prevention**: rounds use a composite Firestore key (`{sessionId}_{roundNumber}`) so two devices confirming the same round race to the same document — last write wins, no duplicates
+- Tested with up to 6 devices simultaneously
 
 ### Stats & History
 - **Players tab**: wins, closes, eliminations, avg score, best streak, achievement badges
@@ -193,10 +194,12 @@ src/
     overlays/           # WhoClosed, EnterScores, Elimination, Winner, Pause
   store/useAppStore.ts  # All game state via Zustand
   db/
-    index.ts            # Dexie schema
-    operations.ts       # All IndexedDB access (16 named functions)
+    index.ts            # Dexie schema — 5 tables: players, sessions, rounds, stats, achievements
+    operations.ts       # All IndexedDB access (22 named functions); dual-writes to Firestore when a room code exists
   lib/
-    firebaseSync.ts     # pullFromCloud, pushToCloud, subscribeToRounds
+    firebaseSync.ts     # 13 exports: syncPlayer, syncSession, syncRound (composite key), deleteRoundFromCloud,
+                        # deletePlayerFromCloud, syncStats, syncAchievement, pushToCloud, pullFromCloud,
+                        # fetchRoundsForSession, pullStatsFromCloud, subscribeToRounds, subscribeToSession
   utils/
     sound.ts            # Web Audio API sounds
 ```
