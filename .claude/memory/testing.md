@@ -101,20 +101,57 @@ Then write test script as `.mjs` and run with `node test.mjs`.
 
 **CRITICAL — Firebase fires TWO events per write:**
 - `setDoc` triggers onSnapshot TWICE: (1) "added" with `hasPendingWrites=true` (local cache, immediate), (2) "modified" with `hasPendingWrites=false` (server confirmation, ~1-4s)
-- Both events call `ingestCloudRound`. The double-check in the functional setter (`set((s) => { if (s.rounds.some(...)) return s; ... })`) handles both correctly WHEN the round is still in state.
+- Both events call `ingestCloudRound`. The double-check in the functional setter handles both correctly WHEN the round is still in state.
 - BUT if undo happens BETWEEN event 1 and event 2: event 2 ("modified") fires after undo → round not in state → re-added. This is an app-level race, not fixed yet.
 - Fix in tests: sleep 6s before undo to let both events settle. Accept soft pass if round still shows after undo.
 
 **3-device parallel join gotcha:**
-- When B and C join in parallel (`Promise.all([deviceJoinAndNavigate(pageB, ...), deviceJoinAndNavigate(pageC, ...)])`), their LiveGame `useEffect` subscriptions may not be established immediately after both pages navigate
-- Add `await sleep(2000)` AFTER confirming B and C show "Round 1" (subscriptions initializing), BEFORE A plays a round, to avoid missing onSnapshot events
-- 15s sync timeout (not 10s) needed for 3-device scenarios due to parallel resource competition
+- When B and C join in parallel, their LiveGame `useEffect` subscriptions may not be established immediately
+- Add `await sleep(2000)` AFTER confirming B and C show "Round 1", BEFORE A plays a round
+- Use 15s sync timeout (not 10s) for 3-device scenarios due to parallel resource competition
 
 **CRITICAL — undo propagation:**
 - `undoLastRound()` calls `deleteRoundFromCloud(deleteDoc)` which fires Firestore "removed" event
 - `subscribeToRounds` only handles "added" | "modified", NOT "removed" — B never sees the undo
-- Design decision: undo is a local operation, remote devices stay on their current state (stale round)
 - If undo-propagation is ever needed: handle `change.type === "removed"` in subscribeToRounds
+
+## Selector Learnings from README Screenshot Script (2026-06-23)
+
+New selectors discovered while building `readme-screenshots.mjs`:
+
+- **PlayerSetup add player input**: `input[placeholder='Naam likhna yahan...']` (NOT "Enter player name")
+- **Add button strict mode**: `button:has-text('Add')` throws strict mode violation — matches BOTH "+ Add Player" AND "Add" modal button. Use `page.locator("button").filter({ hasText: /^Add$/ })` for exact match.
+- **Home "Start New Game"**: Full button text is "🔥 Start New Game". Click it to go DIRECTLY to PlayerSetup (no intermediate page). Use `button:has-text('Start New Game')`.
+- **Stats nav button**: Text is "📊 Stats & History". Use `button:has-text('Stats')` for partial match.
+- **Winner overlay text**: `"Chhummy Champion"` (full: "{name} — Chhummy Champion"). Use `text=Chhummy Champion` to wait for winner screen.
+- **Elimination overlay text**: `"points — OUT"` (lowercase "points"). Use `text=points — OUT` to wait for elimination.
+- **Who Closed overlay**: `text=Kaun Jeeta Be` (no "?" needed for partial match)
+
+## Comprehensive Scenario Tests (2026-06-23)
+
+**File:** `C:\Users\kusha\AppData\Local\Temp\pw-test\comprehensive-scenarios.mjs`
+**Result:** 48/48 passed ✅
+**Duration:** ~407s
+
+**Coverage:**
+- Group A (5): player count variants — 2/3/4/5/6-player games, elimination flows ✅
+- Group B (4): score boundaries — closer constraint 0-5, 100 safe, multi-zero, all-out tiebreaker ✅
+- Group C (4): undo at round 0, undo/redo round counts, redo cleared on new round ✅
+- Group D (4): stats populate, ICE_COLD, PATSY, History expand ✅
+- Group E (5): 2-device sync, History on joined device (new fix), winner overlay on joined device (new fix), room isolation, bidirectional sync ✅
+- Group F (5): Quick Rematch, PlayerHistorySheet, Pause→Resume, tap hint, Hall of Fame ✅
+
+**Key selector gotchas from this suite:**
+- `locator("text=Chhummy Champion").textContent()` throws strict mode violation — the winner text appears in BOTH the visible WinnerView AND the off-screen share card div (position: fixed; left: -9999px). Fix: `.first().textContent()`
+- `locator("text=Round 1").isVisible()` also strict-mode violation — "Round 1" matches the round header ("Round 1") AND the bottom bar ("Round 1 • Live Score Tracker"). Fix: `.first().isVisible()`
+- Undo confirm text is `"Undo Round N?"` (with round number), NOT "Undo last round?" — use `text=Undo Round` (partial)
+- Redo banner text is `"↩ Redo available"` — `text=Redo available` partial match works
+- After undo, clicking the "Redo" button shows a CONFIRM dialog ("Redo Round N?") — must click "Yes" to actually redo
+
+**E2 timing fix:**
+- After joining a room with no active session, `pullFromCloud` completes and closes the join modal (sets showJoin=false)
+- Reliable signal: `waitForFunction(() => !document.querySelector("input[maxlength='6']"))` fires when join modal closes (after pullFromCloud completes)
+- Then `sleep(2000)` for Dexie writes to settle before navigating to Stats
 
 ## Known Test Gaps (as of 2026-06-22 review)
 

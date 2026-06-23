@@ -21,7 +21,7 @@ Tagline: "Always Agitated Aroras". Deployed on Vercel, linked to GitHub (kushagr
 - Closer becomes dealer next round; closer's own score capped at 5 (deadwood was ≤5 to close)
 - Last survivor wins
 
-**What's Built (as of 2026-06-22 — post-feature-batch):**
+**What's Built (as of 2026-06-23 — post-History-fix):**
 - Player management, live game screen, full round flow (end→closer→scores→confirm)
 - Elimination modal (full-screen, dark red, vibration, giant score hero + "points — OUT" label) — NOTE: only shows when ≥2 survivors remain; with 2 players, game goes directly to winner
 - Winner screen (celebration + share card via html2canvas off-screen div fix)
@@ -109,10 +109,15 @@ UI polish also applied (same session):
 - **PlayerHistorySheet mini chart** — Small BarChart (56px) above round list; color-coded (green=0, blue=low, amber=mid, red=high).
 - **Operations layer fully migrated** — Home.tsx, StatsPage.tsx, PlayerSetup.tsx all off `db.*` direct calls.
 
+**README Documentation (2026-06-23) ✅:**
+- GitHub README fully replaced (was Vite boilerplate). Commit 4c4fde1.
+- 12 screenshots captured via Playwright at 390×844 viewport, saved to `docs/screenshots/`
+- Content: game rules, all features, achievement table, tech stack, local dev, project structure
+- Screenshots show full game flow: home+HoF, setup, live tension, who-closed, enter-scores, elimination, winner, stats (all 3 tabs)
+
 **What's NOT Built:**
 - Weekly/Monthly dashboard (time-series Recharts — backlog)
-- Test coverage for new features (confetti, rematch, player history, mid-game share, h2h, batch-11 features) — no Playwright tests written yet
-- Cross-device sync (Firebase — in progress, see below)
+- Cross-device sync undo propagation (known limitation — see KNOWN LIMITATION above)
 
 **Firebase Setup Status (2026-06-23 — PHASE 1 COMPLETE ✅):**
 - Firebase project: `chummyscoretracker` (created via Firebase console, project number 633100813203)
@@ -131,15 +136,36 @@ UI polish also applied (same session):
 - `src/pages/Home.tsx` — "📡 Family Sync" section: Create Room, Join Room (pull-on-join + re-init), Change Room
 - Firestore schema: `families/{familyId}/players|sessions|rounds`
 
-**Phase 2 NOT YET BUILT:**
-- Real-time `onSnapshot` subscription (live score updates on all phones mid-round without refresh)
+**Phase 2 COMPLETE (2026-06-23) ✅:**
+- Real-time `onSnapshot` via `subscribeToRounds` + `subscribeToSession` in `firebaseSync.ts`
+- Stats/achievements Firestore sync: `syncStats`, `syncAchievement` functions; `writeStats()` dual-writes
+- `pushToCloud()` called from `handleCreateRoom` — pushes existing local data on room creation
+- StatsPage backlog: Longest Game stat, Fastest Win stat, Weekly Chart (BarChart by week), "Clear All Data" button
+- "● Live" indicator on Home when room code is set; also visible on LiveGame hero
+- Phase 2 E2E tests: 16/16 features-e2e passing (commit 3d174db); 34/34 multi-device E2E passing
 
-**Known Phase 1 Architectural Gaps (identified 2026-06-23):**
-1. **Offline write loss** — failed Firestore writes are silently dropped; no retry queue. Rounds confirmed while offline don't reach Firestore. Fix: offline queue that buffers failed writes and flushes on reconnect.
-2. **Missing `orderBy` on active session pull** — `pullFromCloud` queries active sessions without `orderBy("startedAt", "desc")`. If two sessions are accidentally active, undefined behavior. One-line fix in `firebaseSync.ts`.
-3. **Stats/achievements not synced** — `writeStats()` is Dexie-only. Hall of Fame and Stats page are device-local. No fix implemented yet.
-4. **Player deduplication risk** — two devices creating same-named player independently before joining = both in cloud, both appear after join.
-5. **Room code only in localStorage** — clearing site data loses the room code with no recovery path.
+**KNOWN BUG (Firebase race, not yet fixed):**
+- Undo + Firebase "modified" event race: `setDoc` fires TWO onSnapshot events per write.
+  If undo happens between event 1 ("added", hasPendingWrites=true) and event 2 ("modified", hasPendingWrites=false),
+  the "modified" event re-adds the undone round. Fix: filter hasPendingWrites events OR track deletedRoundIds.
+
+**KNOWN LIMITATION (undo propagation):**
+- `subscribeToRounds` only handles "added"|"modified", NOT "removed". Undo on Device A never propagates to Device B.
+  Fix: handle `change.type === "removed"` in subscribeToRounds + add `removeIngestedRound` store action.
+
+**Known Architectural Gaps (updated 2026-06-23):**
+1. **Offline write loss** — failed Firestore writes are silently dropped; no retry queue. Rounds confirmed while offline don't reach Firestore.
+2. **Missing `orderBy` on active session pull** — `pullFromCloud` queries sessions without `orderBy`. If two active sessions exist accidentally, undefined behavior.
+3. ~~**Stats/achievements not synced**~~ — **FIXED (2026-06-23)**: `syncStats`, `syncAchievement`, `pullStatsFromCloud` all implemented. Stats/achievements dual-write to Firestore.
+4. **Player deduplication risk** — two devices creating same-named player independently = both appear after join.
+5. **Room code only in localStorage** — clearing site data loses the room code.
+
+**History tab fix (2026-06-23, commit f7e7239):**
+- `pullFromCloud` now fetches ALL sessions (not just active) → joined devices see completed games in History
+- `fetchRoundsForSession(familyId, sessionId)` added to `firebaseSync.ts` — on-demand fetch when History expand finds no local rounds
+- `pullStatsFromCloud(familyId)` added to `firebaseSync.ts` — re-pulls stats+achievements 3s after winner declared on joined device
+- `ingestCloudSession` in `useAppStore.ts` now shows winner overlay on joined device when `session.status === "completed"`
+- `bulkPutRounds(rounds)` added to `operations.ts` — caches cloud-fetched rounds to local Dexie
 
 **Two-Repo Strategy — Decided 2026-06-22:**
 - **Repo 1 (current):** `kushagraarora997/ChhummyScoreTrackerApp` — Firebase Firestore sync. Priority: family delivery speed. Ship quickly, family uses it.

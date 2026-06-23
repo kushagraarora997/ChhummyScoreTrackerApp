@@ -33,8 +33,8 @@ metadata:
 - `src/pages/Home.tsx` — Hall of Fame loads real data from DB
 - `src/db/index.ts` — schema definitions
 
-**DB operations layer (fully migrated 2026-06-22):**
-- `src/db/operations.ts` — 18 named functions wrapping all Dexie calls: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement` (adds nanoid internally)
+**DB operations layer (fully migrated 2026-06-22, updated 2026-06-23):**
+- `src/db/operations.ts` — 19 named functions: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `bulkPutRounds` (new — caches cloud rounds), `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement`
 - `useAppStore.ts` imports from `../db/operations` — zero `db.*` calls in the store
 - `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` all migrated — zero `db.*` calls in any page
 - `updatePlayer(id, Partial<Player>)` and `deletePlayer(id)` added 2026-06-22 for player management feature
@@ -78,6 +78,12 @@ metadata:
 
 **Critical elimination overlay rule:**
 - The `"eliminated"` overlay ONLY renders when `survivors.length > 1` (store ~line 360).
+
+**Firebase sync additions (2026-06-23, commit f7e7239):**
+- `firebaseSync.ts` — added `fetchRoundsForSession(familyId, sessionId)`: on-demand Firestore round fetch for History expand on joined devices; `pullStatsFromCloud(familyId)`: re-pulls stats+achievements after game ends
+- `useAppStore.ts::ingestCloudSession` — now shows winner overlay on joined device when `session.status === "completed" && session.winnerId && ui.overlay.type !== "winner"`; queues `pullStatsFromCloud` 3s later
+- `StatsPage.tsx::expandSession` — lazy-fetches rounds from Firestore when local Dexie has 0 rounds for the session (joined devices); caches via `bulkPutRounds`
+- `pullFromCloud` — changed sessions query from `where("status", "==", "active")` to fetch ALL sessions; only eagerly fetches rounds for the active session (keeps join fast)
 - When there are exactly 2 players and one is eliminated, the game skips the elimination overlay and goes DIRECTLY to the winner overlay.
 - Tests that check the elimination modal must use 3+ players, otherwise they will never see the `Continue` button — the `SURVIVES` winner screen shows instead.
 
