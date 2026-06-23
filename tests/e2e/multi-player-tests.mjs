@@ -5,7 +5,7 @@
  */
 import { chromium } from 'playwright';
 
-const PORT = 5176;
+const PORT = 5173;
 const BASE = `http://localhost:${PORT}`;
 const TS   = Date.now().toString().slice(-4); // run suffix — unique player names per run
 
@@ -116,12 +116,12 @@ async function overlayState(page) {
 }
 
 async function assertAliveCount(page, expected) {
-  // Use element-specific locator — body.textContent() concatenates "Round 1" + "2 alive" → "12 alive"
-  const el   = page.getByText(/\d+ alive/).first();
+  // Use element-specific locator — body.textContent() concatenates "Round 1" + "2 playing" → "12 playing"
+  const el   = page.getByText(/\d+ playing/).first();
   const text = await el.textContent().catch(() => '');
-  const match = text.match(/(\d+)\s+alive/);
+  const match = text.match(/(\d+)\s+playing/);
   const actual = match ? parseInt(match[1]) : -1;
-  if (actual !== expected) throw new Error(`Expected ${expected} alive, got "${text}"`);
+  if (actual !== expected) throw new Error(`Expected ${expected} playing, got "${text}"`);
 }
 
 async function assertRoundHero(page, roundNum) {
@@ -190,7 +190,7 @@ async function test2Player(page) {
     if (!body.includes(B)) throw new Error(`${B} not on live game screen`);
   });
 
-  await check('2P: hero header shows Round 1 + 2 alive', async () => {
+  await check('2P: hero header shows Round 1 + 2 playing', async () => {
     await assertRoundHero(page, 1);
     await assertAliveCount(page, 2);
   });
@@ -215,7 +215,7 @@ async function test2Player(page) {
   });
 
   await check('2P: B at 100 is NOT eliminated (101 threshold)', async () => {
-    await assertAliveCount(page, 2); // both still alive
+    await assertAliveCount(page, 2); // both still playing
     await assertPlayerStillAlive(page, B);
   });
 
@@ -252,7 +252,7 @@ async function test3Player(page) {
       throw new Error('Not all 3 players on screen');
   });
 
-  await check('3P: hero shows Round 1 + 3 alive', async () => {
+  await check('3P: hero shows Round 1 + 3 playing', async () => {
     await assertRoundHero(page, 1);
     await assertAliveCount(page, 3);
   });
@@ -273,7 +273,7 @@ async function test3Player(page) {
     await assertEliminationModal(page, B);
   });
 
-  await check('3P: click Continue — game goes on with 2 alive', async () => {
+  await check('3P: click Continue — game goes on with 2 playing', async () => {
     await clickContinue(page);
     await assertAliveCount(page, 2);
     await assertRoundHero(page, 3);
@@ -310,7 +310,7 @@ async function test4Player(page) {
     await assertAliveCount(page, 4);
   });
 
-  await check('4P: hero shows Round 1 + 4 alive', async () => {
+  await check('4P: hero shows Round 1 + 4 playing', async () => {
     await assertRoundHero(page, 1);
   });
 
@@ -332,7 +332,7 @@ async function test4Player(page) {
     if (!text.includes('OUT')) throw new Error('No OUT text in elimination modal');
   });
 
-  await check('4P: Continue → 2 survivors (A + D)', async () => {
+  await check('4P: Continue → 2 players (A + D)', async () => {
     await clickContinue(page);
     await assertAliveCount(page, 2);
   });
@@ -369,7 +369,7 @@ async function test5Player(page) {
     await assertAliveCount(page, 5);
   });
 
-  await check('5P: hero shows Round 1 + 5 alive', async () => {
+  await check('5P: hero shows Round 1 + 5 playing', async () => {
     await assertRoundHero(page, 1);
   });
 
@@ -391,7 +391,7 @@ async function test5Player(page) {
     if (!text.includes('OUT')) throw new Error('No OUT in elim modal');
   });
 
-  await check('5P: Continue → 3 alive (A, D, E)', async () => {
+  await check('5P: Continue → 3 playing (A, D, E)', async () => {
     await clickContinue(page);
     await assertAliveCount(page, 3);
   });
@@ -400,11 +400,11 @@ async function test5Player(page) {
   await check('5P: round 3 — A=0, D=20, E=20 (totals: D=60, E=60)', async () => {
     await round(page, A, { [D]: 20, [E]: 20 });
     if (await overlayState(page) !== 'normal') throw new Error('Expected normal');
-    await assertAliveCount(page, 3);
+    await assertAliveCount(page, 3); // A + D + E still playing
   });
 
-  // R4: D=25 (85), E=25 (85) — in critical zone, still alive
-  await check('5P: round 4 — A=0, D=25, E=25 (totals: D=85, E=85 — critical but alive)', async () => {
+  // R4: D=25 (85), E=25 (85) — in critical zone, still playing
+  await check('5P: round 4 — A=0, D=25, E=25 (totals: D=85, E=85 — critical but playing)', async () => {
     await round(page, A, { [D]: 25, [E]: 25 });
     if (await overlayState(page) !== 'normal') throw new Error('Expected normal');
     await assertAliveCount(page, 3);
@@ -444,7 +444,7 @@ async function test6Player(page) {
     await assertAliveCount(page, 6);
   });
 
-  await check('6P: hero shows Round 1 + 6 alive', async () => {
+  await check('6P: hero shows Round 1 + 6 playing', async () => {
     await assertRoundHero(page, 1);
   });
 
@@ -466,7 +466,7 @@ async function test6Player(page) {
     if (!text.includes('OUT')) throw new Error('No OUT in elim modal');
   });
 
-  await check('6P: Continue → 4 alive (A, D, E, F)', async () => {
+  await check('6P: Continue → 4 playing (A, D, E, F)', async () => {
     await clickContinue(page);
     await assertAliveCount(page, 4);
   });
@@ -478,7 +478,7 @@ async function test6Player(page) {
   });
 
   // R4: D=25 (85), E=25 (85), F=25 (85)
-  await check('6P: round 4 — D=25, E=25, F=25 (all at 85 — critical)', async () => {
+  await check('6P: round 4 — D=25, E=25, F=25 (all at 85 — critical but playing)', async () => {
     await round(page, A, { [D]: 25, [E]: 25, [F]: 25 });
     if (await overlayState(page) !== 'normal') throw new Error('Expected normal');
     await assertAliveCount(page, 4);
@@ -605,7 +605,7 @@ async function testAllOutSameRound(page) {
     if (await overlayState(page) !== 'normal') throw new Error('Expected normal');
   });
 
-  await check('Edge: verify both at 98 — still alive (< 101)', async () => {
+  await check('Edge: verify both at 98 — still playing (< 101)', async () => {
     await assertAliveCount(page, 2);
   });
 
