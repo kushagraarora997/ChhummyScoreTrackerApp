@@ -32,7 +32,7 @@ jobs:
       - name: Build signed APK
         working-directory: android
         env:
-          KEYSTORE_PATH: chhummy.keystore
+          KEYSTORE_PATH: ${{ github.workspace }}/android/chhummy.keystore
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease
