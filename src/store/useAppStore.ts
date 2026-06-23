@@ -6,7 +6,7 @@ import { soundWinner, soundElimination, soundConfirm } from "../utils/sound";
 import {
   getPlayers, getActiveSession, getRoundsBySession,
   addSession, putSession,
-  addRound, putRound, deleteRound,
+  addRound, putRound, putRoundLocal, deleteRound,
   writeStats,
 } from "../db/operations";
 import { getRoomCode } from "../lib/roomCode";
@@ -302,7 +302,7 @@ export const useAppStore = create<AppState>()(
 
       const last = rounds[rounds.length - 1];
 
-      await deleteRound(last.id);
+      await deleteRound(last);
 
       const remain = rounds.slice(0, -1);
 
@@ -416,11 +416,16 @@ export const useAppStore = create<AppState>()(
     },
 
     async ingestCloudRound(round) {
-      if (get().rounds.some((r) => r.id === round.id)) return;
-      await putRound(round);
-      // Re-check after async putRound — confirmRound may have already set this round
+      const existing = get().rounds;
+      // Dedup by ID (same device's own round coming back via onSnapshot)
+      if (existing.some((r) => r.id === round.id)) return;
+      // Block double-write: skip if we already have this round number for this session
+      if (existing.some((r) => r.sessionId === round.sessionId && r.number === round.number)) return;
+      // Write to Dexie only — no Firestore re-sync (round came FROM Firestore already)
+      await putRoundLocal(round);
       set((s) => {
         if (s.rounds.some((r) => r.id === round.id)) return s;
+        if (s.rounds.some((r) => r.sessionId === round.sessionId && r.number === round.number)) return s;
         return { rounds: [...s.rounds, round].sort((a, b) => a.number - b.number) };
       });
     },

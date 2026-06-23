@@ -23,12 +23,15 @@ export function syncSession(familyId: string, session: Session): Promise<void> {
 }
 
 export function syncRound(familyId: string, round: Round): Promise<void> {
-  return setDoc(doc(firestore, base(familyId), "rounds", round.id), round)
+  // Composite key prevents two devices from creating duplicate Round-N docs
+  const docId = `${round.sessionId}_${round.number}`;
+  return setDoc(doc(firestore, base(familyId), "rounds", docId), round)
     .catch((e) => console.warn("[firebase] syncRound failed", e));
 }
 
-export function deleteRoundFromCloud(familyId: string, roundId: string): Promise<void> {
-  return deleteDoc(doc(firestore, base(familyId), "rounds", roundId))
+export function deleteRoundFromCloud(familyId: string, sessionId: string, roundNumber: number): Promise<void> {
+  const docId = `${sessionId}_${roundNumber}`;
+  return deleteDoc(doc(firestore, base(familyId), "rounds", docId))
     .catch((e) => console.warn("[firebase] deleteRoundFromCloud failed", e));
 }
 
