@@ -7,13 +7,13 @@ metadata:
   originSessionId: 03a24291-4589-4a87-9cd3-a3a1b0099e16
 ---
 
-## Quick Reference (latest commit: 5a8aeb4, 2026-06-23)
+## Quick Reference (latest commit: 277dea2, 2026-06-23)
 
 **Dev server:** `npm run dev` → http://localhost:5173  
 **Build:** `npm run build` (TypeScript strict + Vite, 1600KB bundle, zero errors)  
 **Deploy:** `git push origin main` → auto-deploys to Vercel  
 **Firebase project:** `chummyscoretracker` | API key: `AIzaSyCZDaVKefU0UwBy-y8Kj5FE2t3eJKhW1gs`  
-**Room code localStorage key:** `chhummy-room-code` (NOT `chhummy_room_code`)  
+**Room code localStorage key:** `chhummy_room_code` (underscore — NOT hyphen; architecture.md previously had this backwards)  
 **Test dir:** `C:\Users\kusha\AppData\Local\Temp\pw-test\` — run any `.mjs` with `node filename.mjs`
 
 ---
@@ -30,7 +30,7 @@ metadata:
 **Key files (as of 2026-06-22):**
 - `src/app/App.tsx` — route manager, clean; `AnimatePresence mode="wait"` wraps all routes
 - `src/store/useAppStore.ts` — all state; zero db.* calls (uses operations layer)
-- `src/db/operations.ts` — 16 named Dexie wrapper functions (added 2026-06-22)
+- `src/db/operations.ts` — 23 named Dexie wrapper functions (added `deleteRoundLocal` 2026-06-23)
 - `src/pages/LiveGame.tsx` — orchestrator: player cards + Overlays component + PlayerHistorySheet
 - `src/components/overlays/WhoClosed.tsx` — "Who Closed?" overlay, grid of player buttons
 - `src/components/overlays/EnterScores.tsx` — score entry overlay + custom numpad portal
@@ -45,7 +45,7 @@ metadata:
 - `src/db/index.ts` — schema definitions
 
 **DB operations layer (fully migrated 2026-06-22, updated 2026-06-23):**
-- `src/db/operations.ts` — 20 named functions: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `putRoundLocal` (Dexie-only, no Firestore re-sync — used by ingestCloudRound), `bulkPutRounds` (caches cloud rounds), `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement`
+- `src/db/operations.ts` — 22 named functions: `getPlayers`, `addPlayer`, `updatePlayerLastUsed`, `updatePlayer`, `deletePlayer`, `getActiveSession`, `getCompletedSessions`, `addSession`, `putSession`, `getRoundsBySession`, `countRoundsBySession`, `addRound`, `putRound`, `putRoundLocal` (Dexie-only, no Firestore re-sync — used by ingestCloudRound), `bulkPutRounds` (caches cloud rounds), `deleteRound`, `getGlobalStats`, `putStats`, `getAchievements`, `addAchievement`, `clearAllData` (clears all 5 Dexie tables), `writeStats` (computes + writes stats + achievements on game completion)
 - `deleteRound` signature changed (2026-06-23, batch-16): takes `Pick<Round, "id"|"sessionId"|"number">` not just `id: string` — full round needed to compute composite Firestore key for delete
 - `useAppStore.ts` imports from `../db/operations` — zero `db.*` calls in the store
 - `Home.tsx`, `StatsPage.tsx`, `PlayerSetup.tsx` all migrated — zero `db.*` calls in any page
@@ -290,14 +290,34 @@ This is intentional — prevents two devices from creating duplicate docs for th
 - Initial naive check `if (rounds.some((r) => r.id === round.id)) return` passes (rounds=[] at start of ingest), then `await putRound` completes AFTER `confirmRound`'s `set({ rounds: [round1] })` runs, so the ingest's functional `set((s) => [...s.rounds, round])` appends a DUPLICATE (s.rounds already has round1).
 - Fix: double-check INSIDE the functional setter: `set((s) => { if (s.rounds.some(...)) return s; return {...} })` — the functional setter always has the latest state at call time, so it won't add a round that another set() already added.
 
-**KNOWN BUG — Undo + Firebase "modified" event re-adds round (NOT fixed, 2026-06-23):**
-- Firestore fires onSnapshot TWICE per write: (1) "added" with `hasPendingWrites=true` (local cache, immediate), (2) "modified" with `hasPendingWrites=false` (server confirmation, ~1-4s later)
-- Both events hit `ingestCloudRound`. If the round is still in state, the double-check returns early for both — safe.
-- BUT if `undoLastRound()` runs BETWEEN event 1 and event 2: event 2 fires after undo, round is not in state, double-check passes, round gets re-added. UI shows Round 2 again after undo.
-- Fix options: (a) filter `hasPendingWrites` events in `subscribeToRounds` — only process confirmed writes; (b) maintain a `deletedRoundIds: Set<string>` in store and skip re-ingestion; (c) handle `change.type === "removed"` to undo state (would also fix propagation issue below).
+**Undo Bug 1 FIXED (commit 277dea2, 2026-06-23):**
+- `deletedRoundIds: string[]` added to store state. `undoLastRound()` appends the deleted round's ID. `ingestCloudRound()` returns early if round.id is in the list. `redoLastRound()` removes from the list. Firestore's delayed "modified" confirmation event is blocked from re-adding the round. Verified by D1–D4 in batch17 (21/21 pass).
 
-**KNOWN LIMITATION — Undo doesn't propagate to remote devices (2026-06-23):**
-- `undoLastRound()` calls `deleteRoundFromCloud(deleteDoc)` which fires a Firestore "removed" event.
-- `subscribeToRounds` only handles `change.type === "added" | "modified"` — "removed" is silently ignored.
-- Remote devices stay on their current Round N; they never see the undo. Confirmed in Test 18.
-- Fix: handle `change.type === "removed"` in `subscribeToRounds` and add a `removeIngestedRound(roundId)` action in the store that filters the round out of `state.rounds`.
+**Undo Bug 2 FIXED (commit 277dea2, 2026-06-23):**
+- `subscribeToRounds` now accepts optional `onRoundRemoved?: (round: Round) => void`. When `change.type === "removed"`, it calls the callback. LiveGame passes `(round) => removeIngestedRound(round.id)`. `removeIngestedRound` deletes from Dexie via `deleteRoundLocal` (no Firestore call) and filters from `state.rounds`. Remote devices now see undo reflected within Firestore propagation time (~1-3s). Verified by E1–E4 in batch17.
+
+**`deleteRoundLocal(roundId)` added to operations.ts (2026-06-23):**
+- Dexie-only delete (no Firestore call). Used by `removeIngestedRound` to avoid circular Firestore delete triggered by the remote "removed" event handler.
+
+**Code audit — FIXED (commit 277dea2, 2026-06-23):**
+
+- **`lastRoundId` in Session** — removed from `Session` interface (db/index.ts) and all 3 write sites in useAppStore.ts.
+- **Join validation bug** — `Home.tsx` button `disabled` prop changed to `joinInput.trim().length !== 6`; `handleJoin` guard also `!== 6`.
+- **`getRoomCode()` not reactive** — `LiveGame.tsx` now uses `useState(() => getRoomCode())`.
+- **Extra `getPlayers()` in elimination path** — changed to `get().players.find(...)`.
+- **`Achievement.roundId?`** — removed from Achievement interface in db/index.ts.
+- **`UIOverlay` not exported** — added `export type { UIOverlay }` to useAppStore.ts.
+- **ARORAS permanent room** — `FAMILY_ROOM_CODE = "ARORAS"` constant in roomCode.ts; "👨‍👩‍👧‍👦 Always Agitated Aroras Room" one-tap button on Home.tsx.
+- **Create Room silent sync** — button now shows `disabled={syncing}` and "⏳ Syncing..." state.
+
+**Still open (not fixed):**
+- `pullFromCloud` fetches ALL sessions (unbounded growth).
+- `writeStats()` mixes stat computation and achievement detection.
+- Firestore security rules not in repo.
+- No CI pipeline (GitHub Actions).
+- `ingestCloudSession` doesn't refresh `players` state — renamed player not visible on joined device until reload.
+
+**E2E test suite (2026-06-23, commit 277dea2):**
+- All 10 test files now in repo at `tests/e2e/` with README.
+- `batch17-fixes.mjs` — 21 tests covering all audit fixes (21/21 pass).
+- Total: 382+ tests across all suites.

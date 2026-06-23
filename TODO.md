@@ -540,43 +540,43 @@ All findings from a complete code review: architecture, security, optimisations,
 
 ---
 
-### BUGS (confirmed from code, not yet fixed)
+### BUGS — FIXED (commit 277dea2, 2026-06-23)
 
-- [ ] **Join code validation too loose** — `Home.tsx:81`: `if (code.length < 4) return` should be `if (code.length !== 6) return`. Currently accepts 4–5 char codes; submits garbage keys to Firestore. One-line fix.
+- [x] **[DONE] Join code validation too loose** — Fixed 2026-06-23. `Home.tsx` button `disabled` prop changed from `joinInput.length < 4` to `joinInput.trim().length !== 6`. Also fixed `handleJoin` guard to `!== 6`.
 
-- [ ] **`getRoomCode()` not reactive in LiveGame** — `LiveGame.tsx:34`: `const roomCode = getRoomCode()` reads localStorage at render, not in `useState`. If user creates/joins a room while LiveGame is mounted, the subscription `useEffect` never starts. Fix: `const [roomCode] = useState(() => getRoomCode())`.
+- [x] **[DONE] `getRoomCode()` not reactive in LiveGame** — Fixed 2026-06-23. `const [roomCode] = useState(() => getRoomCode())` so subscription useEffect starts correctly even when room code set after mount.
 
-- [ ] **Undo Bug 1 — Firestore "modified" event re-adds undone round (CONFIRMED UNFIXED)** — Firestore fires TWO onSnapshot events per write: (1) "added" `hasPendingWrites=true` (immediate), (2) "modified" `hasPendingWrites=false` (~1–4s). If undo happens between them, event 2 fires after the round was deleted → round gets re-added. `subscribeToRounds` in `firebaseSync.ts` still only handles `"added" | "modified"`. Fix options: filter `hasPendingWrites` events, or maintain a `deletedRoundNumbers: Set<number>` in the store.
+- [x] **[DONE] Undo Bug 1 — Firestore "modified" event re-adds undone round** — Fixed 2026-06-23. Added `deletedRoundIds: string[]` to store state. `undoLastRound()` appends deleted round ID. `ingestCloudRound()` checks `deletedRoundIds` at top and returns early if hit. `redoLastRound()` removes from set. Verified by D1–D4 in batch17 (21/21 pass).
 
-- [ ] **Undo Bug 2 — Undo doesn't propagate to remote devices (CONFIRMED UNFIXED)** — `undoLastRound()` deletes the Firestore doc (fires "removed" event) but `subscribeToRounds` ignores `change.type === "removed"`. Remote devices stay at Round N forever. Fix: handle `"removed"` in `subscribeToRounds` + add `removeIngestedRound(roundNumber)` action in store that filters the round out of `state.rounds`.
+- [x] **[DONE] Undo Bug 2 — Undo doesn't propagate to remote devices** — Fixed 2026-06-23. `subscribeToRounds` now accepts optional `onRoundRemoved` callback. LiveGame passes `(round) => removeIngestedRound(round.id)`. `removeIngestedRound` deletes from Dexie (via `deleteRoundLocal`) and filters from store state. Verified by E1–E4 in batch17 (21/21 pass).
 
-- [ ] **Extra `getPlayers()` DB call in elimination path** — `useAppStore.ts:244`: `const pmap = await getPlayers()` reads all players from Dexie just to get the eliminated player's name. Players are already in store state. Fix: `const name = get().players.find(p => p.id === first)?.name ?? "Player"`.
-
----
-
-### DEAD CODE
-
-- [ ] **`lastRoundId` in Session is never read** — `Session.lastRoundId?: string` (db/index.ts:18) is written in `confirmRound`, `undoLastRound`, `redoLastRound` but never read anywhere in the codebase. Safe to remove the field and all 3 write sites to save unnecessary Dexie + Firestore writes.
-
-- [ ] **`Achievement.roundId` optional field never set** — `db/index.ts:53`: `roundId?: string` exists in the interface but `writeStats()` never populates it when calling `addAchievement()`. Either set it or remove the field.
+- [x] **[DONE] Extra `getPlayers()` DB call in elimination path** — Fixed 2026-06-23. Changed to `get().players.find(p => p.id === first)?.name ?? "Player"`.
 
 ---
 
-### FEATURE REQUEST
+### DEAD CODE — REMOVED (commit 277dea2, 2026-06-23)
 
-- [ ] **Permanent "ARORAS" family room** — User asked for a fixed room code the Arora family always uses instead of random 6-char codes. Implementation: add a "👨‍👩‍👧‍👦 Family Room" button on Home.tsx that auto-connects to code `"ARORAS"` (hardcoded constant). Skips the Create/Join picker. Note: "ARORAS" contains "O" which is excluded from `generateRoomCode()` CHARS set (0/O confusion avoidance) — but a hardcoded constant is fine. The family can also just manually type "ARORAS" in Join Room input today (no code needed).
+- [x] **[DONE] `lastRoundId` in Session is never read** — Removed `Session.lastRoundId?: string` from db/index.ts and all 3 write sites in useAppStore.ts.
+
+- [x] **[DONE] `Achievement.roundId` optional field never set** — Removed from db/index.ts Achievement interface.
+
+---
+
+### FEATURE REQUEST — DONE (commit 277dea2, 2026-06-23)
+
+- [x] **[DONE] Permanent "ARORAS" family room** — Added `FAMILY_ROOM_CODE = "ARORAS"` constant in roomCode.ts. "👨‍👩‍👧‍👦 Always Agitated Aroras Room" amber button on Home.tsx auto-connects to that code with push+pull sync.
 
 ---
 
 ### ARCHITECTURE / CODE QUALITY
 
-- [ ] **`pushToCloud` needs progress feedback for large history** — `handleCreateRoom()` in Home.tsx calls `pushToCloud(code).finally(...)` but `syncing` state only shows on the Join button, not Create. A family device with 2+ years of game history will push hundreds of Firestore writes silently. Add a "Syncing..." indicator to the Create Room button too.
+- [x] **[DONE] `pushToCloud` needs progress feedback** — Fixed 2026-06-23. Create Room button now shows `disabled={syncing}` + "⏳ Syncing..." while pushing.
 
 - [ ] **`pullFromCloud` fetches ALL sessions** — Fetches every completed session ever played into Dexie on join. For a long-running family this grows unbounded. Consider limiting to the last 30 completed sessions + any active session.
 
 - [ ] **`writeStats()` mixes stat computation and achievement detection** — 107-line function in `operations.ts` doing two distinct jobs. Low priority but could be split into `computeStats()` + `detectAchievements()` for clarity and testability.
 
-- [ ] **`UIOverlay` type not exported** — Defined inline in `useAppStore.ts` but not exported. Any future component that needs to type-check overlay state can't import it cleanly. Minor.
+- [x] **[DONE] `UIOverlay` type not exported** — Fixed 2026-06-23. Added `export type { UIOverlay }` to useAppStore.ts.
 
 ---
 
@@ -588,10 +588,10 @@ All findings from a complete code review: architecture, security, optimisations,
 
 ### TESTING
 
-- [ ] **Move test files into the repo** — All Playwright test scripts live in `C:\Users\kusha\AppData\Local\Temp\pw-test\` and are not version-controlled. They will be lost on OS reinstall or temp cleanup. Move to `tests/e2e/` in the repo.
+- [x] **[DONE] Move test files into the repo** — Done 2026-06-23. All 9 existing Playwright test files moved to `tests/e2e/` with a README. Also added `batch17-fixes.mjs` (21 tests, 21/21 pass).
 
 - [ ] **Add CI pipeline** — Every push to `main` auto-deploys to Vercel without running any tests. A broken push goes live immediately. Add GitHub Actions: at minimum run `npm run build` (TypeScript compile check) on every push/PR.
 
 - [ ] **Add unit tests for pure functions** — `resolveRoundOutcome()` and `writeStats()` logic could have fast Vitest unit tests (no browser, no Playwright, <1s). Would catch score boundary regressions without spinning up a dev server.
 
-- [ ] **Write tests for the two undo bugs** — Bug 1 (Firestore modified re-add) and Bug 2 (undo propagation) have no automated test coverage. When fixed, add E2E tests to prevent regression.
+- [x] **[DONE] Write tests for the two undo bugs** — Done 2026-06-23. batch17-fixes.mjs Groups D and E cover both bugs with real Firestore (7s wait for Firestore event, two-browser propagation test).
