@@ -2,7 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /families/{familyId}/{document=**} {
-      allow read, write: if true;
+      // Only allow access to exactly 6-character room codes.
+      // Blocks random/garbage keys while preserving the family-trust model.
+      allow read, write: if familyId.size() == 6;
     }
   }
 }

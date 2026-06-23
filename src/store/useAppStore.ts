@@ -12,7 +12,7 @@ import {
 import { getRoomCode } from "../lib/roomCode";
 import { pullStatsFromCloud } from "../lib/firebaseSync";
 
-function resolveRoundOutcome(
+export function resolveRoundOutcome(
   playerIds: string[],
   prevTotals: Record<string, number>,
   totals: Record<string, number>,
