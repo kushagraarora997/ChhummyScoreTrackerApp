@@ -9,6 +9,8 @@ import {
   addRound, putRound, deleteRound,
   writeStats,
 } from "../db/operations";
+import { getRoomCode } from "../lib/roomCode";
+import { pullStatsFromCloud } from "../lib/firebaseSync";
 
 function resolveRoundOutcome(
   playerIds: string[],
@@ -424,9 +426,36 @@ export const useAppStore = create<AppState>()(
     },
 
     async ingestCloudSession(session) {
-      const { activeSession } = get();
+      const { activeSession, rounds, ui } = get();
       if (!activeSession || activeSession.id !== session.id) return;
       await putSession(session);
+
+      // When host ends the game, show winner overlay on joined device too
+      if (session.status === "completed" && session.winnerId && ui.overlay.type !== "winner") {
+        const winnerId = session.winnerId;
+        const closes = rounds.filter((r) => r.closerId === winnerId).length;
+        const final = rounds[rounds.length - 1]?.totals[winnerId] ?? 0;
+        soundWinner();
+        navigator.vibrate?.([100, 50, 100, 50, 300]);
+        set({
+          activeSession: session,
+          ui: {
+            ...ui,
+            overlay: {
+              type: "winner",
+              winnerId,
+              summary: { rounds: rounds.length, closes, final },
+            },
+          },
+        });
+        // Pull updated stats from cloud after host has time to write them
+        setTimeout(() => {
+          const code = getRoomCode();
+          if (code) pullStatsFromCloud(code).catch(() => {});
+        }, 3000);
+        return;
+      }
+
       set({ activeSession: session });
     },
 

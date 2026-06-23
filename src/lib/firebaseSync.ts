@@ -1,6 +1,6 @@
 import {
   doc, setDoc, deleteDoc,
-  getDocs, getDoc, collection, query, where, limit, onSnapshot,
+  getDocs, getDoc, collection, query, where, onSnapshot,
 } from "firebase/firestore";
 import { firestore } from "./firebase";
 import { db } from "../db";
@@ -73,15 +73,10 @@ export async function pullFromCloud(familyId: string): Promise<{
   playerCount: number;
   hasActiveSession: boolean;
 }> {
-  const [playersSnap, sessionsSnap, statsSnap, achievementsSnap] = await Promise.all([
+  // Fetch ALL sessions (not just active) so History tab works on joined devices
+  const [playersSnap, allSessionsSnap, statsSnap, achievementsSnap] = await Promise.all([
     getDocs(collection(firestore, base(familyId), "players")),
-    getDocs(
-      query(
-        collection(firestore, base(familyId), "sessions"),
-        where("status", "==", "active"),
-        limit(1),
-      )
-    ),
+    getDocs(collection(firestore, base(familyId), "sessions")),
     getDoc(doc(firestore, base(familyId), "stats", "global")),
     getDocs(collection(firestore, base(familyId), "achievements")),
   ]);
@@ -89,16 +84,18 @@ export async function pullFromCloud(familyId: string): Promise<{
   const players = playersSnap.docs.map((d) => d.data() as Player);
   if (players.length > 0) await db.players.bulkPut(players);
 
-  let hasActiveSession = false;
-  if (!sessionsSnap.empty) {
-    const session = sessionsSnap.docs[0].data() as Session;
-    await db.sessions.put(session);
-    hasActiveSession = true;
+  const allSessions = allSessionsSnap.docs.map((d) => d.data() as Session);
+  if (allSessions.length > 0) await db.sessions.bulkPut(allSessions);
 
+  // Only eagerly fetch rounds for the active session (to keep join fast)
+  const activeSession = allSessions.find((s) => s.status === "active");
+  let hasActiveSession = false;
+  if (activeSession) {
+    hasActiveSession = true;
     const roundsSnap = await getDocs(
       query(
         collection(firestore, base(familyId), "rounds"),
-        where("sessionId", "==", session.id),
+        where("sessionId", "==", activeSession.id),
       )
     );
     const rounds = roundsSnap.docs.map((d) => d.data() as Round);
@@ -111,6 +108,25 @@ export async function pullFromCloud(familyId: string): Promise<{
   if (achievements.length > 0) await db.achievements.bulkPut(achievements);
 
   return { playerCount: players.length, hasActiveSession };
+}
+
+// On-demand round fetch for History expand on joined devices
+export async function fetchRoundsForSession(familyId: string, sessionId: string): Promise<Round[]> {
+  const snap = await getDocs(
+    query(collection(firestore, base(familyId), "rounds"), where("sessionId", "==", sessionId))
+  );
+  return snap.docs.map((d) => d.data() as Round);
+}
+
+// Re-pull stats + achievements after a game ends (for joined devices)
+export async function pullStatsFromCloud(familyId: string): Promise<void> {
+  const [statsSnap, achievementsSnap] = await Promise.all([
+    getDoc(doc(firestore, base(familyId), "stats", "global")),
+    getDocs(collection(firestore, base(familyId), "achievements")),
+  ]);
+  if (statsSnap.exists()) await db.stats.put(statsSnap.data() as Stats);
+  const achievements = achievementsSnap.docs.map((d) => d.data() as Achievement);
+  if (achievements.length > 0) await db.achievements.bulkPut(achievements);
 }
 
 // ── Real-time subscriptions (Phase 2) ─────────────────────────────────────────

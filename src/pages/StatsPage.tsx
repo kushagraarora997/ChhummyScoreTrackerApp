@@ -7,9 +7,10 @@ import {
 import { Player, Session, Round } from "../db";
 import {
   getGlobalStats, getAchievements, getCompletedSessions,
-  countRoundsBySession, getRoundsBySession, getPlayers, clearAllData,
+  countRoundsBySession, getRoundsBySession, getPlayers, clearAllData, bulkPutRounds,
 } from "../db/operations";
-import { clearRoomCode } from "../lib/roomCode";
+import { clearRoomCode, getRoomCode } from "../lib/roomCode";
+import { fetchRoundsForSession } from "../lib/firebaseSync";
 import { useAppStore } from "../store/useAppStore";
 
 interface H2HRecord {
@@ -206,7 +207,17 @@ export default function StatsPage({ onBack }: { onBack: () => void }) {
       setExpandedSession(null);
       return;
     }
-    const rounds = await getRoundsBySession(sessionId);
+    let rounds = await getRoundsBySession(sessionId);
+    // On joined devices, rounds for past sessions aren't in local Dexie — fetch from Firestore
+    if (rounds.length === 0) {
+      const code = getRoomCode();
+      if (code) {
+        try {
+          rounds = await fetchRoundsForSession(code, sessionId);
+          if (rounds.length > 0) await bulkPutRounds(rounds); // cache locally
+        } catch (_) { /* offline fallback — show empty */ }
+      }
+    }
     setExpandedRounds(rounds);
     setExpandedSession(sessionId);
   }

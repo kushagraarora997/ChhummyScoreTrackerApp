@@ -81,6 +81,10 @@ export async function putRound(round: Round): Promise<string> {
   return result;
 }
 
+export function bulkPutRounds(rounds: Round[]): Promise<unknown> {
+  return db.rounds.bulkPut(rounds);
+}
+
 export async function deleteRound(id: string): Promise<void> {
   await db.rounds.delete(id);
   const f = fid(); if (f) deleteRoundFromCloud(f, id);
