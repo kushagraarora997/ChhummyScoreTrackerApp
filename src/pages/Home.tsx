@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useAppStore } from "../store/useAppStore";
 import type { Player } from "../db";
 import { getGlobalStats, getPlayers } from "../db/operations";
-import { getRoomCode, setRoomCode, clearRoomCode, generateRoomCode } from "../lib/roomCode";
+import { getRoomCode, setRoomCode, clearRoomCode, generateRoomCode, FAMILY_ROOM_CODE } from "../lib/roomCode";
 import { pullFromCloud, pushToCloud } from "../lib/firebaseSync";
 
 interface HallEntry {
@@ -76,9 +76,25 @@ export default function Home({
     pushToCloud(code).finally(() => setSyncing(false));
   }
 
+  async function handleFamilyRoom() {
+    const code = FAMILY_ROOM_CODE;
+    setRoomCode(code);
+    setRoomCodeState(code);
+    setSyncing(true);
+    try {
+      await pushToCloud(code);
+      await pullFromCloud(code);
+      await init();
+    } catch (e) {
+      console.warn("[firebase] family room sync failed", e);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function handleJoin() {
     const code = joinInput.trim().toUpperCase();
-    if (code.length < 4) return;
+    if (code.length !== 6) return;
     setSyncing(true);
     try {
       setRoomCode(code);
@@ -152,9 +168,10 @@ export default function Home({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleCreateRoom}
-                  className="py-3 rounded-xl bg-elevated text-sm font-medium active:scale-95 transition"
+                  disabled={syncing}
+                  className="py-3 rounded-xl bg-elevated text-sm font-medium active:scale-95 transition disabled:opacity-40"
                 >
-                  🏠 Create Room
+                  {syncing ? "⏳ Syncing..." : "🏠 Create Room"}
                 </button>
                 <button
                   onClick={() => setShowJoin((v) => !v)}
@@ -163,6 +180,13 @@ export default function Home({
                   🔗 Join Room
                 </button>
               </div>
+              <button
+                onClick={handleFamilyRoom}
+                disabled={syncing}
+                className="w-full mt-2 py-3 rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-400 text-sm font-semibold active:scale-95 transition disabled:opacity-40"
+              >
+                {syncing ? "⏳ Syncing..." : "👨‍👩‍👧‍👦 Always Agitated Aroras Room"}
+              </button>
               {showJoin && (
                 <div className="mt-3 flex gap-2">
                   <input
@@ -175,7 +199,7 @@ export default function Home({
                   />
                   <button
                     onClick={handleJoin}
-                    disabled={syncing || joinInput.length < 4}
+                    disabled={syncing || joinInput.trim().length !== 6}
                     className="px-4 py-2 bg-green-600 rounded-xl text-sm font-bold disabled:opacity-40 active:scale-95 transition"
                   >
                     {syncing ? "..." : "Join"}

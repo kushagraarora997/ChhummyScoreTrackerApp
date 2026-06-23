@@ -89,6 +89,10 @@ export async function putRoundLocal(round: Round): Promise<void> {
   await db.rounds.put(round);
 }
 
+export async function deleteRoundLocal(roundId: string): Promise<void> {
+  await db.rounds.delete(roundId);
+}
+
 export async function deleteRound(round: Pick<Round, "id" | "sessionId" | "number">): Promise<void> {
   await db.rounds.delete(round.id);
   const f = fid(); if (f) deleteRoundFromCloud(f, round.sessionId, round.number);

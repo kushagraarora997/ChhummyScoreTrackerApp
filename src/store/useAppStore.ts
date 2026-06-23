@@ -6,7 +6,7 @@ import { soundWinner, soundElimination, soundConfirm } from "../utils/sound";
 import {
   getPlayers, getActiveSession, getRoundsBySession,
   addSession, putSession,
-  addRound, putRound, putRoundLocal, deleteRound,
+  addRound, putRound, putRoundLocal, deleteRound, deleteRoundLocal,
   writeStats,
 } from "../db/operations";
 import { getRoomCode } from "../lib/roomCode";
@@ -44,11 +44,14 @@ type UIOverlay =
     }
   | { type: "pause" };
 
+export type { UIOverlay };
+
 interface AppState {
   players: Player[];
   activeSession?: Session;
   rounds: Round[];
   lastUndoneRound: Round | null;
+  deletedRoundIds: string[];
   ui: {
     overlay: UIOverlay;
   };
@@ -72,6 +75,7 @@ interface AppState {
 
   ingestCloudRound: (round: Round) => Promise<void>;
   ingestCloudSession: (session: Session) => Promise<void>;
+  removeIngestedRound: (roundId: string) => Promise<void>;
 }
 
 export const useAppStore = create<AppState>()(
@@ -79,6 +83,7 @@ export const useAppStore = create<AppState>()(
     players: [],
     rounds: [],
     lastUndoneRound: null,
+    deletedRoundIds: [],
     ui: {
       overlay: { type: "none" },
     },
@@ -124,6 +129,7 @@ export const useAppStore = create<AppState>()(
         activeSession: session,
         rounds: [],
         lastUndoneRound: null,
+        deletedRoundIds: [],
         ui: { overlay: { type: "none" } },
         tempScores: {},
       });
@@ -218,7 +224,6 @@ export const useAppStore = create<AppState>()(
       const updatedSession: Session = {
         ...activeSession,
         dealerIndex: nextDealerIndex,
-        lastRoundId: round.id,
       };
       await putSession(updatedSession);
 
@@ -241,9 +246,8 @@ export const useAppStore = create<AppState>()(
         case "elimination": {
           soundElimination();
           navigator.vibrate?.([200, 100, 200]);
-          const pmap = await getPlayers();
           const first = justEliminated[0];
-          const name = pmap.find((p) => p.id === first)?.name || "Player";
+          const name = get().players.find((p) => p.id === first)?.name || "Player";
           set((s) => ({ ui: { ...s.ui, overlay: { type: "eliminated", name, total: totals[first] } } }));
           break;
         }
@@ -315,7 +319,6 @@ export const useAppStore = create<AppState>()(
       const updated: Session = {
         ...activeSession,
         dealerIndex,
-        lastRoundId: remain[remain.length - 1]?.id,
         // If undoing the game-ending round, revert session back to active
         ...(activeSession.status === "completed"
           ? { status: "active" as const, winnerId: undefined, endedAt: undefined }
@@ -324,12 +327,14 @@ export const useAppStore = create<AppState>()(
 
       await putSession(updated);
 
-      set({
+      set((s) => ({
         rounds: remain,
         activeSession: updated,
         lastUndoneRound: last,
+        // Bug 1 fix: track deleted round ID so Firestore's delayed "modified" event doesn't re-add it
+        deletedRoundIds: [...s.deletedRoundIds, last.id],
         ui: { overlay: { type: "none" } },
-      });
+      }));
     },
 
     async redoLastRound() {
@@ -345,17 +350,17 @@ export const useAppStore = create<AppState>()(
       const updated: Session = {
         ...activeSession,
         dealerIndex,
-        lastRoundId: lastUndoneRound.id,
       };
 
       await putSession(updated);
 
-      set({
+      set((s) => ({
         rounds: restored,
         activeSession: updated,
         lastUndoneRound: null,
+        deletedRoundIds: s.deletedRoundIds.filter((id) => id !== lastUndoneRound.id),
         ui: { overlay: { type: "none" } },
-      });
+      }));
     },
 
     clearRedo() {
@@ -416,6 +421,8 @@ export const useAppStore = create<AppState>()(
     },
 
     async ingestCloudRound(round) {
+      // Bug 1 fix: skip rounds that were explicitly deleted locally (Firestore "modified" event race)
+      if (get().deletedRoundIds.includes(round.id)) return;
       const existing = get().rounds;
       // Dedup by ID (same device's own round coming back via onSnapshot)
       if (existing.some((r) => r.id === round.id)) return;
@@ -428,6 +435,14 @@ export const useAppStore = create<AppState>()(
         if (s.rounds.some((r) => r.sessionId === round.sessionId && r.number === round.number)) return s;
         return { rounds: [...s.rounds, round].sort((a, b) => a.number - b.number) };
       });
+    },
+
+    // Bug 2 fix: remove a round that was undone on another device (Firestore "removed" event)
+    async removeIngestedRound(roundId) {
+      const { rounds } = get();
+      if (!rounds.some((r) => r.id === roundId)) return;
+      await deleteRoundLocal(roundId);
+      set((s) => ({ rounds: s.rounds.filter((r) => r.id !== roundId) }));
     },
 
     async ingestCloudSession(session) {

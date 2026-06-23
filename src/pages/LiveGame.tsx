@@ -25,17 +25,21 @@ export default function LiveGame({ onExit }: { onExit: () => void }) {
   const declareWinner = useAppStore((s) => s.declareWinner);
   const ingestCloudRound = useAppStore((s) => s.ingestCloudRound);
   const ingestCloudSession = useAppStore((s) => s.ingestCloudSession);
+  const removeIngestedRound = useAppStore((s) => s.removeIngestedRound);
 
   const totals = useMemo(() => getTotals(), [rounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const [undoConfirm, setUndoConfirm] = useState(false);
   const [redoConfirm, setRedoConfirm] = useState(false);
   const [historyPlayerId, setHistoryPlayerId] = useState<string | null>(null);
 
-  const roomCode = getRoomCode();
+  const [roomCode] = useState(() => getRoomCode());
 
   useEffect(() => {
     if (!roomCode || !session) return;
-    const unsubRounds = subscribeToRounds(roomCode, session.id, ingestCloudRound);
+    const unsubRounds = subscribeToRounds(
+      roomCode, session.id, ingestCloudRound,
+      (round) => removeIngestedRound(round.id), // Bug 2 fix: propagate undo to remote devices
+    );
     const unsubSession = subscribeToSession(roomCode, session.id, ingestCloudSession);
     return () => { unsubRounds(); unsubSession(); };
   }, [session?.id, roomCode]); // eslint-disable-line react-hooks/exhaustive-deps

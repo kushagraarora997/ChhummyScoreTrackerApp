@@ -137,7 +137,8 @@ export async function pullStatsFromCloud(familyId: string): Promise<void> {
 export function subscribeToRounds(
   familyId: string,
   sessionId: string,
-  onRound: (round: Round) => void
+  onRound: (round: Round) => void,
+  onRoundRemoved?: (round: Round) => void,
 ): () => void {
   const q = query(
     collection(firestore, base(familyId), "rounds"),
@@ -149,6 +150,8 @@ export function subscribeToRounds(
       snap.docChanges().forEach((change) => {
         if (change.type === "added" || change.type === "modified") {
           onRound(change.doc.data() as Round);
+        } else if (change.type === "removed" && onRoundRemoved) {
+          onRoundRemoved(change.doc.data() as Round);
         }
       });
     },

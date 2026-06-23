@@ -15,7 +15,6 @@ export interface Session {
   playerIds: string[];
   dealerIndex: number;
   winnerId?: string;
-  lastRoundId?: string;
   status: "active" | "completed" | "abandoned";
 }
 
@@ -49,7 +48,6 @@ export interface Achievement {
   playerId: string;
   key: "ICE_COLD" | "UNTOUCHABLE" | "SURVIVOR" | "CLUTCH_MASTER" | "PATSY";
   sessionId: string;
-  roundId?: string;
   createdAt: number;
 }
 

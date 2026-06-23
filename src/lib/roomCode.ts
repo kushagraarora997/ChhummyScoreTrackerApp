@@ -1,5 +1,7 @@
 const KEY = "chhummy_room_code";
 
+export const FAMILY_ROOM_CODE = "ARORAS";
+
 const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/I/1 to avoid ambiguity
 
 export function getRoomCode(): string | null {

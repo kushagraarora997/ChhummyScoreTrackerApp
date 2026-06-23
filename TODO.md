@@ -531,3 +531,67 @@ Sab files padhe. Neeche sab naya kaam.
 - [x] **[DONE] Live game — score number size could be bolder** — Fixed 2026-06-21. Bumped to `text-3xl` for all player cards.
 
 - [x] **[DONE] Extended haptics (8 items from earlier audit)** — Fixed 2026-06-21. All 8 haptic patterns implemented (see Extended haptics section above).
+
+---
+
+## Full Code Audit — 2026-06-23
+
+All findings from a complete code review: architecture, security, optimisations, dead code, testing.
+
+---
+
+### BUGS (confirmed from code, not yet fixed)
+
+- [ ] **Join code validation too loose** — `Home.tsx:81`: `if (code.length < 4) return` should be `if (code.length !== 6) return`. Currently accepts 4–5 char codes; submits garbage keys to Firestore. One-line fix.
+
+- [ ] **`getRoomCode()` not reactive in LiveGame** — `LiveGame.tsx:34`: `const roomCode = getRoomCode()` reads localStorage at render, not in `useState`. If user creates/joins a room while LiveGame is mounted, the subscription `useEffect` never starts. Fix: `const [roomCode] = useState(() => getRoomCode())`.
+
+- [ ] **Undo Bug 1 — Firestore "modified" event re-adds undone round (CONFIRMED UNFIXED)** — Firestore fires TWO onSnapshot events per write: (1) "added" `hasPendingWrites=true` (immediate), (2) "modified" `hasPendingWrites=false` (~1–4s). If undo happens between them, event 2 fires after the round was deleted → round gets re-added. `subscribeToRounds` in `firebaseSync.ts` still only handles `"added" | "modified"`. Fix options: filter `hasPendingWrites` events, or maintain a `deletedRoundNumbers: Set<number>` in the store.
+
+- [ ] **Undo Bug 2 — Undo doesn't propagate to remote devices (CONFIRMED UNFIXED)** — `undoLastRound()` deletes the Firestore doc (fires "removed" event) but `subscribeToRounds` ignores `change.type === "removed"`. Remote devices stay at Round N forever. Fix: handle `"removed"` in `subscribeToRounds` + add `removeIngestedRound(roundNumber)` action in store that filters the round out of `state.rounds`.
+
+- [ ] **Extra `getPlayers()` DB call in elimination path** — `useAppStore.ts:244`: `const pmap = await getPlayers()` reads all players from Dexie just to get the eliminated player's name. Players are already in store state. Fix: `const name = get().players.find(p => p.id === first)?.name ?? "Player"`.
+
+---
+
+### DEAD CODE
+
+- [ ] **`lastRoundId` in Session is never read** — `Session.lastRoundId?: string` (db/index.ts:18) is written in `confirmRound`, `undoLastRound`, `redoLastRound` but never read anywhere in the codebase. Safe to remove the field and all 3 write sites to save unnecessary Dexie + Firestore writes.
+
+- [ ] **`Achievement.roundId` optional field never set** — `db/index.ts:53`: `roundId?: string` exists in the interface but `writeStats()` never populates it when calling `addAchievement()`. Either set it or remove the field.
+
+---
+
+### FEATURE REQUEST
+
+- [ ] **Permanent "ARORAS" family room** — User asked for a fixed room code the Arora family always uses instead of random 6-char codes. Implementation: add a "👨‍👩‍👧‍👦 Family Room" button on Home.tsx that auto-connects to code `"ARORAS"` (hardcoded constant). Skips the Create/Join picker. Note: "ARORAS" contains "O" which is excluded from `generateRoomCode()` CHARS set (0/O confusion avoidance) — but a hardcoded constant is fine. The family can also just manually type "ARORAS" in Join Room input today (no code needed).
+
+---
+
+### ARCHITECTURE / CODE QUALITY
+
+- [ ] **`pushToCloud` needs progress feedback for large history** — `handleCreateRoom()` in Home.tsx calls `pushToCloud(code).finally(...)` but `syncing` state only shows on the Join button, not Create. A family device with 2+ years of game history will push hundreds of Firestore writes silently. Add a "Syncing..." indicator to the Create Room button too.
+
+- [ ] **`pullFromCloud` fetches ALL sessions** — Fetches every completed session ever played into Dexie on join. For a long-running family this grows unbounded. Consider limiting to the last 30 completed sessions + any active session.
+
+- [ ] **`writeStats()` mixes stat computation and achievement detection** — 107-line function in `operations.ts` doing two distinct jobs. Low priority but could be split into `computeStats()` + `detectAchievements()` for clarity and testability.
+
+- [ ] **`UIOverlay` type not exported** — Defined inline in `useAppStore.ts` but not exported. Any future component that needs to type-check overlay state can't import it cleanly. Minor.
+
+---
+
+### SECURITY
+
+- [ ] **Verify Firestore security rules** — Rules are not in the repo. Current data model (`families/{familyId}/**`) has no authentication — anyone who knows or guesses a 6-char code can read/write a family's game data. Rules should at minimum restrict write size / rate. Not urgent for a private family app but worth confirming rules exist and aren't fully open.
+
+---
+
+### TESTING
+
+- [ ] **Move test files into the repo** — All Playwright test scripts live in `C:\Users\kusha\AppData\Local\Temp\pw-test\` and are not version-controlled. They will be lost on OS reinstall or temp cleanup. Move to `tests/e2e/` in the repo.
+
+- [ ] **Add CI pipeline** — Every push to `main` auto-deploys to Vercel without running any tests. A broken push goes live immediately. Add GitHub Actions: at minimum run `npm run build` (TypeScript compile check) on every push/PR.
+
+- [ ] **Add unit tests for pure functions** — `resolveRoundOutcome()` and `writeStats()` logic could have fast Vitest unit tests (no browser, no Playwright, <1s). Would catch score boundary regressions without spinning up a dev server.
+
+- [ ] **Write tests for the two undo bugs** — Bug 1 (Firestore modified re-add) and Bug 2 (undo propagation) have no automated test coverage. When fixed, add E2E tests to prevent regression.
