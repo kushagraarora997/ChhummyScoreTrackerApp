@@ -76,7 +76,9 @@ export async function pullFromCloud(familyId: string): Promise<{
   playerCount: number;
   hasActiveSession: boolean;
 }> {
-  // Fetch players, last 30 completed sessions, active session, stats, achievements
+  // Fetch players, last 30 completed sessions, active session, stats, achievements.
+  // completedSnap uses orderBy which requires a composite index — isolate its failure so
+  // the active session (critical for Device B sync) is never blocked by a missing index.
   const [playersSnap, completedSnap, activeSnap, statsSnap, achievementsSnap] = await Promise.all([
     getDocs(collection(firestore, base(familyId), "players")),
     getDocs(query(
@@ -84,7 +86,8 @@ export async function pullFromCloud(familyId: string): Promise<{
       where("status", "==", "completed"),
       orderBy("startedAt", "desc"),
       limit(30),
-    )),
+    // Isolate failure: composite index may not exist yet; don't block the active session fetch
+    )).catch((): { docs: [] } => ({ docs: [] })),
     getDocs(query(
       collection(firestore, base(familyId), "sessions"),
       where("status", "==", "active"),

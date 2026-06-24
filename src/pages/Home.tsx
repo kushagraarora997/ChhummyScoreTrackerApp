@@ -42,6 +42,15 @@ export default function Home({
   const active = useAppStore((s) => s.activeSession);
   const init = useAppStore((s) => s.init);
   const [hall, setHall] = useState<HallData | null>(null);
+
+  // Re-pull from cloud every time the Home screen mounts so Device B always sees Device A's current game
+  useEffect(() => {
+    const code = getRoomCode();
+    if (!code) return;
+    pullFromCloud(code)
+      .then(() => init())
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [rulesOpen, setRulesOpen] = useState(false);
   const [roomCode, setRoomCodeState] = useState<string | null>(getRoomCode);
   const [showJoin, setShowJoin] = useState(false);
@@ -82,8 +91,9 @@ export default function Home({
     setRoomCodeState(code);
     setSyncing(true);
     try {
-      await pushToCloud(code);
+      // Pull first so Dexie has the host's active session before we push anything
       await pullFromCloud(code);
+      await pushToCloud(code);
       await init();
     } catch (e) {
       console.warn("[firebase] family room sync failed", e);

@@ -6,6 +6,8 @@ import LiveGame from "../pages/LiveGame";
 import PlayerSetup from "../pages/PlayerSetup";
 import Splash from "../pages/Splash";
 import StatsPage from "../pages/StatsPage";
+import { getRoomCode } from "../lib/roomCode";
+import { pullFromCloud } from "../lib/firebaseSync";
 
 type Route = "splash" | "home" | "setup" | "live" | "stats";
 
@@ -16,10 +18,23 @@ export default function App() {
   const [route, setRoute] = useState<Route>("splash");
 
   useEffect(() => {
-    init().then(() => {
-      setTimeout(() => setRoute("home"), 900);
-    });
-  }, [init]);
+    async function startup() {
+      await init();
+      const code = getRoomCode();
+      await Promise.all([
+        // Minimum 900ms splash so the animation completes
+        new Promise<void>((r) => setTimeout(r, 900)),
+        // Pull latest state from cloud in parallel so Device B sees Device A's game
+        code
+          ? pullFromCloud(code)
+              .then(() => init())
+              .catch((e) => console.warn("[firebase] startup pull failed", e))
+          : Promise.resolve(),
+      ]);
+      setRoute("home");
+    }
+    startup();
+  }, [init]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleVisibility = () => {
