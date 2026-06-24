@@ -112,22 +112,24 @@ export default function PauseOverlay({ onExit }: { onExit: () => void }) {
       )}
 
       {/* Off-screen standings card for html2canvas */}
+      {/* Outer div has NO padding so offsetWidth = exactly the specified width, preventing right-edge clipping */}
       <div
         ref={hiddenRef}
         style={{
           position: "fixed",
           left: "-9999px",
           top: 0,
-          width: "300px",
+          width: "340px",
           backgroundColor: "#050505",
-          padding: "20px",
           borderRadius: "20px",
           fontFamily: font,
           color: "#F5F5F5",
           fontSize: "14px",
           lineHeight: "1.4",
+          overflow: "hidden",
         }}
       >
+      <div style={{ padding: "20px" }}>
         <div style={{ textAlign: "center", marginBottom: "16px" }}>
           <div style={{ fontSize: "18px", fontWeight: 900, letterSpacing: "-0.5px" }}>
             Standings after Round {roundNumber - 1}
@@ -173,6 +175,7 @@ export default function PauseOverlay({ onExit }: { onExit: () => void }) {
         <div style={{ textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.4)", marginTop: "12px", fontStyle: "italic" }}>
           🃏 chhummy-tracker
         </div>
+      </div>
       </div>
     </FullOverlay>
   );

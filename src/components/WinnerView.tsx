@@ -210,22 +210,24 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
       </div>
 
       {/* Off-screen card for html2canvas — NO flexbox (html2canvas doesn't support it); use tables + floats */}
+      {/* Outer div has NO padding so offsetWidth = exactly the specified width, preventing right-edge clipping */}
       <div
         ref={hiddenCardRef}
         style={{
           position: "fixed",
           left: "-9999px",
           top: 0,
-          width: "320px",
+          width: "360px",
           backgroundColor: "#050505",
-          padding: "24px",
           borderRadius: "20px",
           fontFamily: font,
           color: "#F5F5F5",
           fontSize: "14px",
           lineHeight: "1.4",
+          overflow: "hidden",
         }}
       >
+      <div style={{ padding: "24px" }}>
         <div style={{ textAlign: "center", marginBottom: "20px" }}>
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>{winner?.emoji ?? "👑"}</div>
           <div style={{ fontSize: "26px", fontWeight: 900, letterSpacing: "-0.5px" }}>
@@ -297,6 +299,7 @@ export default function WinnerView({ onClose, onRematch }: { onClose: () => void
         <div style={{ textAlign: "center", fontSize: "13px", color: "rgba(255,255,255,0.55)", fontStyle: "italic", marginTop: "14px" }}>
           "Clutch maar diya" 🃏
         </div>
+      </div>
       </div>
     </div>
   );
